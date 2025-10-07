@@ -13,6 +13,7 @@ defmodule Sonnet.Application do
       {DNSCluster, query: Application.get_env(:sonnet, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Sonnet.PubSub},
       # Start a worker by calling: Sonnet.Worker.start_link(arg)
+      {Sonnet.Ingest, bucket: "", prefix: ""},
       # {Sonnet.Worker, arg},
       # Start to serve requests, typically the last entry
       SonnetWeb.Endpoint

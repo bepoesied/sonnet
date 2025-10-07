@@ -67,7 +67,11 @@ defmodule Sonnet.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:ueberauth, "~> 0.10.8"},
-      {:ueberauth_oidcc, "~> 0.4.2"}
+      {:ueberauth_oidcc, "~> 0.4.2"},
+      {:ex_aws, "~> 2.1"},
+      {:ex_aws_s3, "~> 2.0"},
+      {:hackney, "~> 1.9"},
+      {:sweet_xml, "~> 0.6"}
     ]
   end
 
