@@ -1,14 +1,29 @@
-image: nixos/unstable
+image: alpine/edge
 packages:
-  - nixos.devenv
-  - nixos.cachix
-  - nixos.secretspec
+  - nix
 sources:
   - git@git.sr.ht:~drangon/sonnet
 environment:
   SECRETSPEC_PROVIDER: env
   SECRETSPEC_PROFILE: ci
 tasks:
+  - setup-nix: |
+      export RUNNER=$(whoami)
+      sudo addgroup $RUNNER nix
+
+      cat <<EOF | sudo tee /etc/nix/nix.conf > /dev/null
+      allowed-users = @nix
+      trusted-users = root @nix
+      build-users-group = nixbld
+      max-jobs = 4
+      EOF
+
+      echo 'export PATH=$PATH:$HOME/.nix-profile/bin' >> .buildenv
+
+      sudo rc-update add nix-daemon
+      sudo service nix-daemon start
+  - install-tools: |
+      nix-env -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable -iA nixpkgs.devenv nixpkgs.secretspec nixpkgs.cachix
   - setup-cachix: |
       cachix use devenv
   - check-secretspec: |
