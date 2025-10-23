@@ -1,8 +1,8 @@
 image: nixos/unstable
 packages:
-  - devenv
-  - cachix
-  - secretspec
+  - nixos.devenv
+  - nixos.cachix
+  - nixos.secretspec
 sources:
   - git@git.sr.ht:~drangon/sonnet
 tasks:

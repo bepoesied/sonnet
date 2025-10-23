@@ -5,6 +5,7 @@
     pkgs.git
     pkgs.nixd
     pkgs.watchman
+    pkgs.hut
   ];
 
   languages.nix.enable = true;
