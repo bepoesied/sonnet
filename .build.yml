@@ -23,7 +23,7 @@ tasks:
       sudo rc-update add nix-daemon
       sudo service nix-daemon start
   - install-tools: |
-      nix-env -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable -iA nixpkgs.devenv nixpkgs.secretspec nixpkgs.cachix
+      nix-env -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable -iA devenv secretspec cachix
   - setup-cachix: |
       cachix use devenv
   - check-secretspec: |
