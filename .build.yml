@@ -5,9 +5,15 @@ packages:
   - nixos.secretspec
 sources:
   - git@git.sr.ht:~drangon/sonnet
+environment:
+  SECRETSPEC_PROVIDER: env
+  SECRETSPEC_PROFILE: ci
 tasks:
   - setup-cachix: |
       cachix use devenv
+  - check-secretspec: |
+      cd sonnet
+      secretspec check
   - devenv-test: |
       cd sonnet
       devenv test

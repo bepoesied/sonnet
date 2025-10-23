@@ -30,11 +30,11 @@
   };
 
   env = {
-    SONNET_OIDCC_CLIENT_ID = config.secretspec.secrets.SONNET_OIDCC_CLIENT_ID;
-    SONNET_OIDCC_CLIENT_SECRET = config.secretspec.secrets.SONNET_OIDCC_CLIENT_SECRET;
-    SONNET_OIDCC_ISSUER = config.secretspec.secrets.SONNET_OIDCC_ISSUER;
-    SONNET_S3_ACCESS_KEY_ID = config.secretspec.secrets.SONNET_S3_ACCESS_KEY_ID;
-    SONNET_S3_ACCESS_KEY_SECRET = config.secretspec.secrets.SONNET_S3_ACCESS_KEY_SECRET;
-    SONNET_S3_HOST = config.secretspec.secrets.SONNET_S3_HOST;
+    SONNET_OIDCC_CLIENT_ID = config.secretspec.secrets.SONNET_OIDCC_CLIENT_ID or "";
+    SONNET_OIDCC_CLIENT_SECRET = config.secretspec.secrets.SONNET_OIDCC_CLIENT_SECRET or "";
+    SONNET_OIDCC_ISSUER = config.secretspec.secrets.SONNET_OIDCC_ISSUER or "";
+    SONNET_S3_ACCESS_KEY_ID = config.secretspec.secrets.SONNET_S3_ACCESS_KEY_ID or "";
+    SONNET_S3_ACCESS_KEY_SECRET = config.secretspec.secrets.SONNET_S3_ACCESS_KEY_SECRET or "";
+    SONNET_S3_HOST = config.secretspec.secrets.SONNET_S3_HOST or "";
   };
 }

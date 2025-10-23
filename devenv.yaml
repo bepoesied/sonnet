@@ -5,5 +5,3 @@ inputs:
 
 secretspec:
   enable: true
-  provider: keyring
-  profile: default
