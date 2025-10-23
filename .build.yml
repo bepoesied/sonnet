@@ -1,0 +1,13 @@
+image: nixos/unstable
+packages:
+  - devenv
+  - cachix
+  - secretspec
+sources:
+  - git@git.sr.ht:~drangon/sonnet
+tasks:
+  - setup-cachix: |
+      cachix use devenv
+  - devenv-test: |
+      cd sonnet
+      devenv test
