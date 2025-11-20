@@ -36,6 +36,10 @@ config :ex_aws,
   access_key_id: System.fetch_env!("SONNET_S3_ACCESS_KEY_ID"),
   secret_access_key: System.fetch_env!("SONNET_S3_ACCESS_KEY_SECRET")
 
+config :sonnet,
+  ingest_bucket: System.fetch_env!("SONNET_S3_BUCKET"),
+  ingest_prefix: System.get_env("SONNET_S3_PREFIX")
+
 config :ex_aws, :s3,
   host: System.fetch_env!("SONNET_S3_HOST"),
   scheme: System.get_env("SONNET_S3_SCHEME", "https://"),

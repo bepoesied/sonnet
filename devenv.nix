@@ -36,5 +36,19 @@
     SONNET_S3_ACCESS_KEY_ID = config.secretspec.secrets.SONNET_S3_ACCESS_KEY_ID or "";
     SONNET_S3_ACCESS_KEY_SECRET = config.secretspec.secrets.SONNET_S3_ACCESS_KEY_SECRET or "";
     SONNET_S3_HOST = config.secretspec.secrets.SONNET_S3_HOST or "";
+    SONNET_S3_BUCKET = config.secretspec.secrets.SONNET_S3_BUCKET or "";
+    SONNET_S3_PREFIX = config.secretspec.secrets.SONNET_S3_PREFIX or "";
+  };
+
+  services.postgres = {
+    enable = true;
+    listen_addresses = "localhost";
+    initialDatabases = [
+      {
+        name = "sonnet_dev";
+        user = "sonnet";
+        pass = "sonnet";
+      }
+    ];
   };
 }
