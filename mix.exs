@@ -21,7 +21,7 @@ defmodule Sonnet.MixProject do
   def application do
     [
       mod: {Sonnet.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :os_mon]
     ]
   end
 
@@ -66,12 +66,16 @@ defmodule Sonnet.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
+      {:oban, "~> 2.17"},
+      {:oban_web, "~> 2.11"},
+      {:ffmpex, "~> 0.10"},
       {:ueberauth, "~> 0.10.8"},
       {:ueberauth_oidcc, "~> 0.4.2"},
       {:ex_aws, "~> 2.1"},
       {:ex_aws_s3, "~> 2.0"},
       {:hackney, "~> 1.9"},
-      {:sweet_xml, "~> 0.6"}
+      {:sweet_xml, "~> 0.6"},
+      {:ecto_psql_extras, "~> 0.6"}
     ]
   end
 

@@ -7,6 +7,15 @@
 # General application configuration
 import Config
 
+config :sonnet, Oban,
+  engine: Oban.Engines.Basic,
+  queues: [default: 10],
+  repo: Sonnet.Repo,
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}
+  ]
+
 config :sonnet, :scopes,
   user: [
     default: true,

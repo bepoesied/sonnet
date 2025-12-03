@@ -7,11 +7,14 @@ defmodule Sonnet.Application do
 
   @impl true
   def start(_type, _args) do
+    Oban.Telemetry.attach_default_logger()
+
     children = [
       SonnetWeb.Telemetry,
       Sonnet.Repo,
       {DNSCluster, query: Application.get_env(:sonnet, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Sonnet.PubSub},
+      {Oban, Application.fetch_env!(:sonnet, Oban)},
       # Start a worker by calling: Sonnet.Worker.start_link(arg)
       # {Sonnet.Worker, arg},
       # Start to serve requests, typically the last entry
