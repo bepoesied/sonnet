@@ -11,6 +11,8 @@
     pkgs.nixd
     pkgs.watchman
     pkgs.hut
+
+    pkgs.ffmpeg
   ];
 
   languages.nix.enable = true;
