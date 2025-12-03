@@ -32,20 +32,21 @@ config :ueberauth_oidcc, :providers,
     uid_field: "sub"
   ]
 
-config :ex_aws,
-  access_key_id: System.fetch_env!("SONNET_S3_ACCESS_KEY_ID"),
-  secret_access_key: System.fetch_env!("SONNET_S3_ACCESS_KEY_SECRET")
-
-config :sonnet,
-  ingest_bucket: System.fetch_env!("SONNET_S3_BUCKET"),
-  ingest_prefix: System.get_env("SONNET_S3_PREFIX")
-
-config :ex_aws, :s3,
-  host: System.fetch_env!("SONNET_S3_HOST"),
-  scheme: System.get_env("SONNET_S3_SCHEME", "https://"),
-  region: System.get_env("SONNET_S3_REGION", "us-east-1")
-
 if config_env() == :prod do
+  config :ex_aws,
+    access_key_id: System.fetch_env!("SONNET_S3_ACCESS_KEY_ID"),
+    secret_access_key: System.fetch_env!("SONNET_S3_ACCESS_KEY_SECRET")
+
+  config :sonnet,
+    ingest_bucket: System.fetch_env!("SONNET_S3_BUCKET"),
+    ingest_prefix: System.get_env("SONNET_S3_PREFIX")
+
+  config :ex_aws, :s3,
+    host: System.fetch_env!("SONNET_S3_HOST"),
+    scheme: System.get_env("SONNET_S3_SCHEME", "https://"),
+    region: System.get_env("SONNET_S3_REGION", "us-east-1"),
+    port: Integer.parse(System.get_env("SONNET_S3_PORT", "443"))
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

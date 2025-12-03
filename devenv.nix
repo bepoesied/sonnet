@@ -37,14 +37,9 @@
   };
 
   env = {
-    SONNET_OIDCC_CLIENT_ID = config.secretspec.secrets.SONNET_OIDCC_CLIENT_ID or "";
-    SONNET_OIDCC_CLIENT_SECRET = config.secretspec.secrets.SONNET_OIDCC_CLIENT_SECRET or "";
-    SONNET_OIDCC_ISSUER = config.secretspec.secrets.SONNET_OIDCC_ISSUER or "";
-    SONNET_S3_ACCESS_KEY_ID = config.secretspec.secrets.SONNET_S3_ACCESS_KEY_ID or "";
-    SONNET_S3_ACCESS_KEY_SECRET = config.secretspec.secrets.SONNET_S3_ACCESS_KEY_SECRET or "";
-    SONNET_S3_HOST = config.secretspec.secrets.SONNET_S3_HOST or "";
-    SONNET_S3_BUCKET = config.secretspec.secrets.SONNET_S3_BUCKET or "";
-    SONNET_S3_PREFIX = config.secretspec.secrets.SONNET_S3_PREFIX or "";
+    SONNET_OIDCC_CLIENT_ID = config.secretspec.secrets.SONNET_OIDCC_CLIENT_ID;
+    SONNET_OIDCC_CLIENT_SECRET = config.secretspec.secrets.SONNET_OIDCC_CLIENT_SECRET;
+    SONNET_OIDCC_ISSUER = config.secretspec.secrets.SONNET_OIDCC_ISSUER;
   };
 
   services.postgres = {
@@ -57,6 +52,14 @@
         pass = "sonnet";
       }
     ];
+  };
+
+  services.minio = {
+    enable = true;
+    accessKey = "minioadmin";
+    buckets = [ "sonnet-dev" ];
+    region = "us-east-1";
+    secretKey = "minioadmin";
   };
 
   enterShell = ''

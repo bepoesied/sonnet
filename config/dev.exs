@@ -1,5 +1,19 @@
 import Config
 
+config :ex_aws,
+  access_key_id: "minioadmin",
+  secret_access_key: "minioadmin"
+
+config :sonnet,
+  ingest_bucket: "sonnet-dev",
+  ingest_prefix: ""
+
+config :ex_aws, :s3,
+  host: "localhost",
+  scheme: "http://",
+  region: "us-east-1",
+  port: 9000
+
 # Configure your database
 config :sonnet, Sonnet.Repo,
   username: "sonnet",
