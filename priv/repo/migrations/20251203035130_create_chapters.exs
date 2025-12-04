@@ -8,11 +8,13 @@ defmodule Sonnet.Repo.Migrations.CreateChapters do
       add :end_ms, :integer, null: false
       add :position, :integer, null: false
       add :book_id, references(:books, on_delete: :delete_all), null: false
+      add :media_asset_id, references(:media_assets, on_delete: :delete_all), null: false
 
       timestamps(type: :utc_datetime)
     end
 
     create index(:chapters, [:book_id])
+    create index(:chapters, [:media_asset_id])
     create unique_index(:chapters, [:book_id, :position])
 
     create constraint(:chapters, :start_ms_must_be_positive, check: "start_ms >= 0")

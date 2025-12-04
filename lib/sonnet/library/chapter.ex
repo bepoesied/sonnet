@@ -7,7 +7,9 @@ defmodule Sonnet.Library.Chapter do
     field :start_ms, :integer
     field :end_ms, :integer
     field :position, :integer
-    field :book_id, :id
+
+    belongs_to :book, Sonnet.Library.Book
+    belongs_to :media_asset, Sonnet.Library.MediaAsset
 
     timestamps(type: :utc_datetime)
   end
@@ -15,7 +17,7 @@ defmodule Sonnet.Library.Chapter do
   @doc false
   def changeset(chapter, attrs) do
     chapter
-    |> cast(attrs, [:title, :start_ms, :end_ms, :position, :book_id])
-    |> validate_required([:title, :start_ms, :end_ms, :position, :book_id])
+    |> cast(attrs, [:title, :start_ms, :end_ms, :position, :book_idk, :media_asset_id])
+    |> validate_required([:title, :start_ms, :end_ms, :position, :book_id, :media_asset_id])
   end
 end

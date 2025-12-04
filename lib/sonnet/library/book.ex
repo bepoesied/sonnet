@@ -9,6 +9,8 @@ defmodule Sonnet.Library.Book do
     field :description, :string
     field :cover_s3_key, :string
 
+    has_many :chapters, Sonnet.Library.Chapter
+
     timestamps(type: :utc_datetime)
   end
 
