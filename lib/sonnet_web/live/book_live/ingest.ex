@@ -62,6 +62,11 @@ defmodule SonnetWeb.BookLive.Ingest do
         {:ok, %{key: key, client_name: client_name}}
       end)
 
+    {:ok, _} =
+      %{s3_key: uploaded_file.key}
+      |> Sonnet.Workers.Ingester.new()
+      |> Oban.insert()
+
     socket =
       socket
       |> put_flash(:info, "Successfully uploaded #{uploaded_file.client_name}")

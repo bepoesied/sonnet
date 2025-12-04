@@ -36,12 +36,6 @@
     mixed-line-endings.enable = true;
   };
 
-  env = {
-    SONNET_OIDCC_CLIENT_ID = config.secretspec.secrets.SONNET_OIDCC_CLIENT_ID;
-    SONNET_OIDCC_CLIENT_SECRET = config.secretspec.secrets.SONNET_OIDCC_CLIENT_SECRET;
-    SONNET_OIDCC_ISSUER = config.secretspec.secrets.SONNET_OIDCC_ISSUER;
-  };
-
   services.postgres = {
     enable = true;
     listen_addresses = "localhost";
