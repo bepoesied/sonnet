@@ -20,19 +20,19 @@ if System.get_env("PHX_SERVER") do
   config :sonnet, SonnetWeb.Endpoint, server: true
 end
 
-config :ueberauth_oidcc, :issuers, [
-  %{name: :oidcc_issuer, issuer: System.fetch_env!("SONNET_OIDCC_ISSUER")}
-]
-
-config :ueberauth_oidcc, :providers,
-  oidc: [
-    client_id: System.fetch_env!("SONNET_OIDCC_CLIENT_ID"),
-    client_secret: System.fetch_env!("SONNET_OIDCC_CLIENT_SECRET"),
-    scopes: ["openid", "profile"],
-    uid_field: "sub"
+if config_env() == :prod do
+  config :ueberauth_oidcc, :issuers, [
+    %{name: :oidcc_issuer, issuer: System.fetch_env!("SONNET_OIDCC_ISSUER")}
   ]
 
-if config_env() == :prod do
+  config :ueberauth_oidcc, :providers,
+    oidc: [
+      client_id: System.fetch_env!("SONNET_OIDCC_CLIENT_ID"),
+      client_secret: System.fetch_env!("SONNET_OIDCC_CLIENT_SECRET"),
+      scopes: ["openid", "profile"],
+      uid_field: "sub"
+    ]
+
   config :ex_aws,
     access_key_id: System.fetch_env!("SONNET_S3_ACCESS_KEY_ID"),
     secret_access_key: System.fetch_env!("SONNET_S3_ACCESS_KEY_SECRET")

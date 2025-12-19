@@ -56,6 +56,21 @@
     secretKey = "minioadmin";
   };
 
+  services.keycloak = {
+    enable = true;
+    realms.dev = {
+      path = "./realms/dev.json";
+      export = true;
+      import = true;
+    };
+    settings = {
+      http-host = "127.0.0.1";
+      http-port = 8080;
+      https-port = 34429;
+      http-management-port = lib.mkForce 8081;
+    };
+  };
+
   enterShell = ''
     # Install Hex and rebar if not already installed
     mix local.hex --force --if-missing

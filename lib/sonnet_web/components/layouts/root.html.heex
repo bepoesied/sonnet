@@ -35,7 +35,7 @@
       <%= if @current_scope do %>
         <li class="">
           <div>
-            <div class="avatar w-[1.5em] h-[1.5em]">
+            <div :if={@current_scope.user.avatar_url != nil} class="avatar w-[1.5em] h-[1.5em]">
               <img class="rounded-full" src={@current_scope.user.avatar_url} />
             </div>
             <span>{@current_scope.user.name || @current_scope.user.sub}</span>
