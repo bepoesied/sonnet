@@ -3,14 +3,26 @@ defmodule Sonnet.Workers.Ingester do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"s3_key" => s3_key} = _args}) do
-    probe =
-      s3_key
-      |> download_from_s3!()
-      |> probe_file!()
+    path = download_from_s3!(s3_key)
+    probe = probe_file!(path)
+
+    cover_s3_key =
+      if has_video_stream?(probe) do
+        case extract_cover(path) do
+          {:ok, cover_path} ->
+            hash = calculate_hash(cover_path)
+            upload_cover(cover_path, hash)
+
+          :error ->
+            nil
+        end
+      else
+        nil
+      end
 
     media_asset = Sonnet.Library.create_media_asset!(s3_key)
 
-    Sonnet.Library.ingest_probe!(probe, media_asset.id)
+    Sonnet.Library.ingest_probe!(probe, media_asset.id, cover_s3_key)
 
     :ok
   end
@@ -42,5 +54,47 @@ defmodule Sonnet.Workers.Ingester do
       {output, 0} -> Jason.decode!(output)
       {_, _} -> raise "failed to probe file"
     end
+  end
+
+  defp has_video_stream?(%{"streams" => streams}) do
+    Enum.any?(streams, fn stream -> stream["codec_type"] == "video" end)
+  end
+
+  defp calculate_hash(path) do
+    File.stream!(path)
+    |> Enum.reduce(:crypto.hash_init(:sha256), fn chunk, acc ->
+      :crypto.hash_update(acc, chunk)
+    end)
+    |> :crypto.hash_final()
+    |> Base.encode16(case: :lower)
+  end
+
+  defp extract_cover(path) do
+    output_path = Briefly.create!(type: :path, extname: ".jpg")
+
+    case System.cmd("ffmpeg", ["-i", path, "-frames:v", "1", "-f", "image2", output_path, "-y"]) do
+      {_, 0} ->
+        if File.exists?(output_path) and File.stat!(output_path).size > 0 do
+          {:ok, output_path}
+        else
+          :error
+        end
+
+      {_, _} ->
+        :error
+    end
+  end
+
+  defp upload_cover(path, hash) do
+    bucket = Application.get_env(:sonnet, :ingest_bucket)
+    prefix = Application.get_env(:sonnet, :ingest_prefix)
+    key = "#{prefix}/covers/#{hash}.jpg"
+
+    path
+    |> ExAws.S3.Upload.stream_file()
+    |> ExAws.S3.upload(bucket, key)
+    |> ExAws.request!()
+
+    key
   end
 end

@@ -12,13 +12,18 @@ defmodule Sonnet.Library do
     )
   end
 
-  def ingest_probe!(%{"chapters" => chapters, "format" => format}, media_asset_id) do
+  def ingest_probe!(
+        %{"chapters" => chapters, "format" => format},
+        media_asset_id,
+        cover_s3_key \\ nil
+      ) do
     book =
       Book.changeset(%Book{}, %{
         title: format["tags"]["title"],
         author: Map.get(format["tags"], "author"),
         narrator: Map.get(format["tags"], "artist"),
-        description: Map.get(format["tags"], "description")
+        description: Map.get(format["tags"], "description"),
+        cover_s3_key: cover_s3_key
       })
 
     {:ok, book} = Repo.insert(book)
