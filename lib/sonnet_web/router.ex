@@ -55,6 +55,7 @@ defmodule SonnetWeb.Router do
       on_mount: [{SonnetWeb.UserAuth, :require_authenticated}] do
       live "/users/settings", UserLive.Settings, :edit
       live "/ingest", BookLive.Ingest, :ingest
+      live "/library", LibraryLive, :index
     end
   end
 
