@@ -7,7 +7,7 @@ defmodule Sonnet.Library do
   def create_media_asset!(s3_key) do
     Repo.insert!(MediaAsset.changeset(%MediaAsset{}, %{s3_key: s3_key}),
       on_conflict: :nothing,
-      conflict_target: s3_key,
+      conflict_target: :s3_key,
       returning: true
     )
   end
