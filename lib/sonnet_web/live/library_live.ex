@@ -109,10 +109,8 @@ defmodule SonnetWeb.LibraryLive do
   end
 
   @impl true
-  def handle_event("save_position", %{"id" => id, "position" => position}, socket) do
-    # Here you would save the position to the database.
-    # position is in seconds (float).
-    IO.puts("Saving position for book #{id}: #{position}s")
+  def handle_event("save_position", %{"id" => id, "position_ms" => position_ms}, socket) do
+    IO.puts("Saving position for book #{id}: #{position_ms}s")
     {:noreply, socket}
   end
 
