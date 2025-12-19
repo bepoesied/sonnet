@@ -3,10 +3,14 @@ defmodule Sonnet.Workers.Ingester do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"s3_key" => s3_key} = _args}) do
-    s3_key
-    |> download_from_s3!()
-    |> probe_file!()
-    |> dbg()
+    probe =
+      s3_key
+      |> download_from_s3!()
+      |> probe_file!()
+
+    media_asset = Sonnet.Library.create_media_asset!(s3_key)
+
+    Sonnet.Library.ingest_probe!(probe, media_asset.id)
 
     :ok
   end

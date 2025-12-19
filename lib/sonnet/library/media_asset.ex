@@ -15,5 +15,6 @@ defmodule Sonnet.Library.MediaAsset do
     media_asset
     |> cast(attrs, [:s3_key])
     |> validate_required([:s3_key])
+    |> unique_constraint(:s3_key)
   end
 end

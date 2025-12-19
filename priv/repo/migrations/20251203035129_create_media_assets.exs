@@ -7,5 +7,7 @@ defmodule Sonnet.Repo.Migrations.CreateMediaAssets do
 
       timestamps(type: :utc_datetime)
     end
+
+    create unique_index(:media_assets, [:s3_key])
   end
 end

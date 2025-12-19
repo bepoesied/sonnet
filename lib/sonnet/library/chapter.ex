@@ -19,7 +19,7 @@ defmodule Sonnet.Library.Chapter do
     chapter
     |> cast(attrs, [:title, :start_ms, :end_ms, :position, :book_id, :media_asset_id])
     |> validate_required([:title, :start_ms, :end_ms, :position, :book_id, :media_asset_id])
-    |> validate_number(:start_ms, greater_than: 0)
+    |> validate_number(:start_ms, greater_than_or_equal_to: 0)
     |> validate_number(:end_ms, greater_than: 0)
     |> validate_greater_than(:end_ms, :start_ms)
   end
