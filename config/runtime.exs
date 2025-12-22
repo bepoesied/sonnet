@@ -27,6 +27,7 @@ if config_env() == :prod do
 
   config :ueberauth_oidcc, :providers,
     oidc: [
+      issuer: :oidcc_issuer,
       client_id: System.fetch_env!("SONNET_OIDCC_CLIENT_ID"),
       client_secret: System.fetch_env!("SONNET_OIDCC_CLIENT_SECRET"),
       scopes: ["openid", "profile"],
