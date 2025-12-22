@@ -38,10 +38,11 @@ tasks:
   - build-images: |
       cd "${CODE_DIR}"
       podman build \
+        --layers \
         --platform linux/amd64,linux/arm64 \
         --manifest "${IMAGE_NAME}" \
-        --cache-from "docker://${CACHE_IMAGE}" \
-        --cache-to "docker://${CACHE_IMAGE}" \
+        --cache-from "${CACHE_IMAGE}" \
+        --cache-to "${CACHE_IMAGE}" \
         .
   - push-images: |
-      podman manifest push "${IMAGE_NAME}" "docker://${IMAGE_NAME}"
+      podman manifest push "${IMAGE_NAME}"
