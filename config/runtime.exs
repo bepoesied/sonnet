@@ -46,7 +46,7 @@ if config_env() == :prod do
     host: System.fetch_env!("SONNET_S3_HOST"),
     scheme: System.get_env("SONNET_S3_SCHEME", "https://"),
     region: System.get_env("SONNET_S3_REGION", "us-east-1"),
-    port: Integer.parse(System.get_env("SONNET_S3_PORT", "443"))
+    port: String.to_integer(System.get_env("SONNET_S3_PORT", "443"))
 
   database_url =
     System.get_env("DATABASE_URL") ||
