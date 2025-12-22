@@ -38,12 +38,63 @@ defmodule SonnetWeb.Layouts do
     <header class="navbar px-4 sm:px-6 lg:px-8">
       <div class="flex-1">
         <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
+          <span class="text-xl font-bold tracking-tight">Sonnet</span>
         </a>
       </div>
       <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
+        <ul class="flex flex-column px-1 space-x-6 items-center">
+          <%= if @current_scope.user do %>
+            <li>
+              <.link
+                navigate={~p"/library"}
+                class="text-sm font-semibold leading-6 hover:text-zinc-700 dark:hover:text-zinc-300"
+              >
+                Library
+              </.link>
+            </li>
+            <li>
+              <.link
+                navigate={~p"/ingest"}
+                class="text-sm font-semibold leading-6 hover:text-zinc-700 dark:hover:text-zinc-300"
+              >
+                Ingest
+              </.link>
+            </li>
+            <li class="flex items-center gap-3 pl-4 border-l border-zinc-200 dark:border-zinc-800">
+              <div :if={@current_scope.user.avatar_url} class="size-6 overflow-hidden rounded-full">
+                <img src={@current_scope.user.avatar_url} />
+              </div>
+              <span class="text-sm font-medium">
+                {@current_scope.user.name || @current_scope.user.sub}
+              </span>
+            </li>
+            <li>
+              <.link
+                navigate={~p"/users/settings"}
+                class="text-sm font-semibold leading-6 hover:text-zinc-700 dark:hover:text-zinc-300"
+              >
+                Settings
+              </.link>
+            </li>
+            <li>
+              <.link
+                href={~p"/users/log-out"}
+                method="delete"
+                class="text-sm font-semibold leading-6 hover:text-zinc-700 dark:hover:text-zinc-300"
+              >
+                Log out
+              </.link>
+            </li>
+          <% else %>
+            <li>
+              <.link
+                href={~p"/auth/oidc"}
+                class="text-sm font-semibold leading-6 hover:text-zinc-700 dark:hover:text-zinc-300"
+              >
+                Log in
+              </.link>
+            </li>
+          <% end %>
           <li>
             <.theme_toggle />
           </li>

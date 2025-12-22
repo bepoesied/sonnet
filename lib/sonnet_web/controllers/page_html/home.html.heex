@@ -1,1 +1,18 @@
-<Layouts.flash_group flash={@flash} />
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <div class="flex flex-col items-center justify-center min-h-[50vh] text-center">
+    <h1 class="text-4xl font-bold tracking-tight sm:text-6xl">
+      Welcome to Sonnet
+    </h1>
+    <p class="mt-6 text-lg leading-8 text-zinc-600 dark:text-zinc-400">
+      Your personal audiobook library.
+    </p>
+    <div class="mt-10 flex items-center justify-center gap-x-6">
+      <.link
+        href={~p"/auth/oidc"}
+        class="rounded-md bg-zinc-900 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-zinc-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+      >
+        Get started
+      </.link>
+    </div>
+  </div>
+</Layouts.app>

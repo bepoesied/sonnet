@@ -120,7 +120,10 @@ defmodule SonnetWeb.UserAuth do
 
   # Do not renew session if the user is already logged in
   # to prevent CSRF errors or data being lost in tabs that are still open
-  defp renew_session(conn, user) when conn.assigns.current_scope.user.id == user.id do
+  defp renew_session(conn, user)
+       when not is_nil(conn.assigns.current_scope) and
+              not is_nil(conn.assigns.current_scope.user) and
+              conn.assigns.current_scope.user.id == user.id do
     conn
   end
 

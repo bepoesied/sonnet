@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="Sonnet" suffix=" · Phoenix Framework">
+    <.live_title default="Sonnet">
       {assigns[:page_title]}
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
@@ -31,28 +31,6 @@
     </script>
   </head>
   <body>
-    <ul class="menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
-      <%= if @current_scope do %>
-        <li class="">
-          <div>
-            <div :if={@current_scope.user.avatar_url != nil} class="avatar w-[1.5em] h-[1.5em]">
-              <img class="rounded-full" src={@current_scope.user.avatar_url} />
-            </div>
-            <span>{@current_scope.user.name || @current_scope.user.sub}</span>
-          </div>
-        </li>
-        <li>
-          <.link href={~p"/users/settings"}>Settings</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-out"} method="delete">Log out</.link>
-        </li>
-      <% else %>
-        <li>
-          <.link href={~p"/auth/oidc"}>Log in</.link>
-        </li>
-      <% end %>
-    </ul>
     {@inner_content}
   </body>
 </html>
