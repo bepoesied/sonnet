@@ -36,6 +36,7 @@ defmodule SonnetWeb.LibraryLive do
 
         <.player_bar
           playing_book={@playing_book}
+          playing_chapter={@playing_chapter}
           audio_url={@audio_url}
           start_at={@start_at}
         />

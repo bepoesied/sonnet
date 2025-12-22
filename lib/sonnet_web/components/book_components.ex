@@ -45,6 +45,7 @@ defmodule SonnetWeb.BookComponents do
   Renders the fixed audio player bar.
   """
   attr :playing_book, :any, required: true
+  attr :playing_chapter, :any, default: nil
   attr :audio_url, :string, required: true
   attr :start_at, :integer, required: true
 
@@ -65,6 +66,9 @@ defmodule SonnetWeb.BookComponents do
         <div class="flex-grow min-w-0">
           <h4 class="font-bold text-zinc-100 truncate">{@playing_book.title}</h4>
           <p class="text-sm text-zinc-400 truncate">{@playing_book.author}</p>
+          <p :if={@playing_chapter} class="text-xs text-zinc-500 mt-0.5 truncate">
+            {@playing_chapter.position}: {@playing_chapter.title}
+          </p>
         </div>
         <div class="flex-grow max-w-2xl">
           <audio
