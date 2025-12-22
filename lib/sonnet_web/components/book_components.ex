@@ -13,9 +13,8 @@ defmodule SonnetWeb.BookComponents do
     ~H"""
     <div
       id={@id}
-      class="card bg-base-200 shadow-xl cursor-pointer hover:scale-105 transition-transform group"
-      phx-click="play"
-      phx-value-id={@book.id}
+      tabindex="0"
+      class="card bg-base-200 shadow-xl cursor-pointer hover:scale-105 focus-within:scale-105 transition-transform group focus:outline-none"
     >
       <figure class="aspect-square relative overflow-hidden">
         <img
@@ -30,8 +29,15 @@ defmodule SonnetWeb.BookComponents do
         >
           <.icon name="hero-book-open" class="w-12 h-12" />
         </div>
-        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <.icon name="hero-play-circle" class="w-16 h-16 text-white" />
+        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center">
+          <button
+            type="button"
+            phx-click="play"
+            phx-value-id={@book.id}
+            class="text-white hover:scale-110 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-white rounded-full"
+          >
+            <.icon name="hero-play-circle" class="w-16 h-16" />
+          </button>
         </div>
       </figure>
       <div class="card-body p-3 sm:p-4 text-center items-center">
