@@ -32,6 +32,10 @@ There are 2 debug consoles available:
 
 The application is containerized and hosted at `quay.io/drangon/sonnet`.
 
+> [!IMPORTANT]
+> For security, the application must be served over HTTPS and should be deployed
+> behind a reverse proxy like Traefik or Nginx.
+
 ### Environment Variables
 
 The following environment variables must be configured in your production
