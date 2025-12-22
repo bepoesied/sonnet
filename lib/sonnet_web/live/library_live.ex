@@ -146,6 +146,76 @@ defmodule SonnetWeb.LibraryLive do
   end
 
   @impl true
+  def handle_event("next_chapter", %{"id" => id}, socket) do
+    user_id = socket.assigns.current_scope.user.id
+    book_id = String.to_integer(id)
+    playing_book = socket.assigns.playing_book
+    playing_chapter = socket.assigns.playing_chapter
+
+    if playing_chapter && playing_chapter.book_id == book_id do
+      next_chapter =
+        Enum.find(playing_book.chapters, fn c ->
+          c.position == playing_chapter.position + 1
+        end)
+
+      case next_chapter do
+        %{media_asset: %{s3_key: s3_key}} = chapter ->
+          audio_url = Library.presigned_url(s3_key)
+          start_at = chapter.start_ms
+
+          Library.save_listen_progress(user_id, book_id, chapter.id, 0)
+
+          {:noreply,
+           assign(socket,
+             playing_chapter: chapter,
+             audio_url: audio_url,
+             start_at: start_at
+           )}
+
+        _ ->
+          {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("previous_chapter", %{"id" => id}, socket) do
+    user_id = socket.assigns.current_scope.user.id
+    book_id = String.to_integer(id)
+    playing_book = socket.assigns.playing_book
+    playing_chapter = socket.assigns.playing_chapter
+
+    if playing_chapter && playing_chapter.book_id == book_id do
+      prev_chapter =
+        Enum.find(playing_book.chapters, fn c ->
+          c.position == playing_chapter.position - 1
+        end)
+
+      case prev_chapter do
+        %{media_asset: %{s3_key: s3_key}} = chapter ->
+          audio_url = Library.presigned_url(s3_key)
+          start_at = chapter.start_ms
+
+          Library.save_listen_progress(user_id, book_id, chapter.id, 0)
+
+          {:noreply,
+           assign(socket,
+             playing_chapter: chapter,
+             audio_url: audio_url,
+             start_at: start_at
+           )}
+
+        _ ->
+          {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
   def handle_event("stop", _, socket) do
     {:noreply,
      assign(socket, playing_book: nil, playing_chapter: nil, audio_url: nil, start_at: 0)}

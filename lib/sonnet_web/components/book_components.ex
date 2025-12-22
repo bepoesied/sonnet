@@ -67,7 +67,7 @@ defmodule SonnetWeb.BookComponents do
           <h4 class="font-bold text-zinc-100 truncate">{@playing_book.title}</h4>
           <p class="text-sm text-zinc-400 truncate">{@playing_book.author}</p>
           <p :if={@playing_chapter} class="text-xs text-zinc-500 mt-0.5 truncate">
-            {@playing_chapter.position}: {@playing_chapter.title}
+            {@playing_chapter.title}
           </p>
         </div>
         <div class="flex-grow max-w-2xl">
@@ -81,6 +81,12 @@ defmodule SonnetWeb.BookComponents do
             phx-hook="AudioPlayer"
             data-book-id={@playing_book.id}
             data-start-at={@start_at}
+            data-title={@playing_book.title}
+            data-author={@playing_book.author}
+            data-cover-url={
+              @playing_book.cover_s3_key && Library.presigned_url(@playing_book.cover_s3_key)
+            }
+            data-chapter-title={@playing_chapter && @playing_chapter.title}
           >
             Your browser does not support the audio element.
           </audio>
