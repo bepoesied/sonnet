@@ -86,6 +86,7 @@ defmodule SonnetWeb do
       import Phoenix.HTML
       # Core UI components
       import SonnetWeb.CoreComponents
+      import SonnetWeb.BookComponents
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS

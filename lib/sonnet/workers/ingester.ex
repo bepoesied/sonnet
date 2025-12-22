@@ -5,8 +5,6 @@ defmodule Sonnet.Workers.Ingester do
   def perform(%Oban.Job{args: %{"s3_key" => s3_key} = _args}) do
     path = download_from_s3!(s3_key)
 
-    new_s3_key = calculate_hash(path)
-
     probe = probe_file!(path)
 
     cover_s3_key =
@@ -97,16 +95,6 @@ defmodule Sonnet.Workers.Ingester do
     |> ExAws.request!()
 
     key
-  end
-
-  defp s3_object_exists?(s3_key) do
-    key = full_key(s3_key)
-
-    case ExAws.S3.head_object(bucket(), key) |> ExAws.request() do
-      {:ok, _} -> true
-      {:error, {:http_error, 404, _}} -> false
-      {:error, reason} -> raise "failed to check s3 object existence: #{inspect(reason)}"
-    end
   end
 
   defp bucket do
