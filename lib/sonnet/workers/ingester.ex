@@ -7,37 +7,29 @@ defmodule Sonnet.Workers.Ingester do
 
     new_s3_key = calculate_hash(path)
 
-    cond do
-      s3_object_exists?(new_s3_key) ->
-        delete_from_s3(s3_key)
-        :ok
+    probe = probe_file!(path)
 
-      true ->
-        rename_in_s3(s3_key, new_s3_key)
+    cover_s3_key =
+      if has_video_stream?(probe) do
+        case extract_cover(path) do
+          {:ok, cover_path} ->
+            hash = calculate_hash(cover_path)
+            upload_cover(cover_path, hash)
 
-        s3_key = new_s3_key
-        probe = probe_file!(path)
-
-        cover_s3_key =
-          if has_video_stream?(probe) do
-            case extract_cover(path) do
-              {:ok, cover_path} ->
-                hash = calculate_hash(cover_path)
-                upload_cover(cover_path, hash)
-
-              :error ->
-                nil
-            end
-          else
+          :error ->
             nil
-          end
+        end
+      else
+        nil
+      end
 
-        media_asset = Sonnet.Library.create_media_asset!(s3_key)
+    media_asset = Sonnet.Library.create_media_asset!(s3_key)
 
-        Sonnet.Library.ingest_probe!(probe, media_asset.id, cover_s3_key)
+    Sonnet.Library.ingest_probe!(probe, media_asset.id, cover_s3_key)
 
-        :ok
-    end
+    Sonnet.Library.broadcast_books_updated()
+
+    :ok
   end
 
   defp download_from_s3!(s3_key) do
@@ -115,24 +107,6 @@ defmodule Sonnet.Workers.Ingester do
       {:error, {:http_error, 404, _}} -> false
       {:error, reason} -> raise "failed to check s3 object existence: #{inspect(reason)}"
     end
-  end
-
-  defp rename_in_s3(old_s3_key, new_s3_key) do
-    old_key = full_key(old_s3_key)
-    new_key = full_key(new_s3_key)
-
-    ExAws.S3.put_object_copy(bucket(), new_key, bucket(), old_key)
-    |> ExAws.request!()
-
-    ExAws.S3.delete_object(bucket(), old_key)
-    |> ExAws.request!()
-  end
-
-  defp delete_from_s3(s3_key) do
-    key = full_key(s3_key)
-
-    ExAws.S3.delete_object(bucket(), key)
-    |> ExAws.request!()
   end
 
   defp bucket do

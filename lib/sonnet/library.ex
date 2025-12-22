@@ -1,5 +1,16 @@
 defmodule Sonnet.Library do
   import Ecto.Query, warn: false
+
+  @topic "library"
+
+  def subscribe do
+    Phoenix.PubSub.subscribe(Sonnet.PubSub, @topic)
+  end
+
+  def broadcast_books_updated do
+    Phoenix.PubSub.broadcast(Sonnet.PubSub, @topic, :books_updated)
+  end
+
   alias Sonnet.Repo
   alias Sonnet.Library.Chapter
   alias Sonnet.Library.Book

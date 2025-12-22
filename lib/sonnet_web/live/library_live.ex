@@ -4,11 +4,12 @@ defmodule SonnetWeb.LibraryLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    books = Library.list_books()
+    if connected?(socket), do: Library.subscribe()
 
     {:ok,
-     assign(socket,
-       books: books,
+     socket
+     |> stream(:books, Library.list_books())
+     |> assign(
        playing_book: nil,
        playing_chapter: nil,
        audio_url: nil,
@@ -25,10 +26,14 @@ defmodule SonnetWeb.LibraryLive do
           Library
         </.header>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mt-8">
+        <div
+          id="books"
+          phx-update="stream"
+          class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mt-8"
+        >
           <div
-            :for={book <- @books}
-            id={"book-#{book.id}"}
+            :for={{id, book} <- @streams.books}
+            id={id}
             class="cursor-pointer group"
             phx-click="play"
             phx-value-id={book.id}
@@ -200,5 +205,10 @@ defmodule SonnetWeb.LibraryLive do
   def handle_event("stop", _, socket) do
     {:noreply,
      assign(socket, playing_book: nil, playing_chapter: nil, audio_url: nil, start_at: 0)}
+  end
+
+  @impl true
+  def handle_info(:books_updated, socket) do
+    {:noreply, stream(socket, :books, Library.list_books(), reset: true)}
   end
 end
