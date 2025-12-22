@@ -21,15 +21,22 @@ defmodule SonnetWeb.LibraryLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="p-6 max-w-7xl mx-auto">
-        <.header>
-          Library
-        </.header>
+      <div class="container mx-auto pb-32">
+        <div class="flex items-center gap-6 px-2 py-12">
+          <h1 class="text-4xl font-bold tracking-tight">Library</h1>
+          <.link
+            patch={~p"/ingest"}
+            class="btn btn-primary btn-circle shadow-md hover:scale-110 transition-transform"
+            title="Upload Book"
+          >
+            <.icon name="hero-plus" class="size-6" />
+          </.link>
+        </div>
 
         <div
           id="books"
           phx-update="stream"
-          class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-10 mt-8"
+          class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-8 px-2"
         >
           <.book_card :for={{id, book} <- @streams.books} id={id} book={book} />
         </div>

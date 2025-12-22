@@ -7,11 +7,22 @@ defmodule SonnetWeb.UserLive.Settings do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="text-center">
-        <.header>
-          Account Settings
-          <:subtitle>Manage your account email address and password settings</:subtitle>
-        </.header>
+      <div class="flex flex-col gap-6">
+        <div class="flex items-center gap-6 py-12">
+          <.link
+            patch={~p"/library"}
+            class="btn btn-primary btn-circle shadow-md hover:scale-110 transition-transform"
+            title="Back to Library"
+          >
+            <.icon name="hero-arrow-left" class="size-6" />
+          </.link>
+          <div>
+            <h1 class="text-4xl font-bold tracking-tight">Account Settings</h1>
+            <p class="text-base-content/70 mt-1">
+              Manage your account email address and password settings
+            </p>
+          </div>
+        </div>
       </div>
     </Layouts.app>
     """

@@ -35,75 +35,76 @@ defmodule SonnetWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
+    <div class="navbar bg-base-100 sticky top-0 z-40 px-4 sm:px-6 lg:px-8 h-16">
       <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
+        <.link navigate={~p"/"} class="flex items-center gap-2 group">
+          <div class="bg-primary text-primary-content p-1.5 rounded-lg group-hover:scale-110 transition-transform">
+            <.icon name="hero-musical-note" class="size-6" />
+          </div>
           <span class="text-xl font-bold tracking-tight">Sonnet</span>
-        </a>
+        </.link>
       </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-6 items-center">
-          <%= if @current_scope.user do %>
-            <li>
-              <.link
-                navigate={~p"/library"}
-                class="text-sm font-semibold leading-6 hover:text-zinc-700 dark:hover:text-zinc-300"
-              >
-                Library
-              </.link>
-            </li>
-            <li>
-              <.link
-                navigate={~p"/ingest"}
-                class="text-sm font-semibold leading-6 hover:text-zinc-700 dark:hover:text-zinc-300"
-              >
-                Ingest
-              </.link>
-            </li>
-            <li class="flex items-center gap-3 pl-4 border-l border-zinc-200 dark:border-zinc-800">
-              <div :if={@current_scope.user.avatar_url} class="size-6 overflow-hidden rounded-full">
-                <img src={@current_scope.user.avatar_url} />
-              </div>
-              <span class="text-sm font-medium">
-                {@current_scope.user.name || @current_scope.user.sub}
-              </span>
-            </li>
-            <li>
-              <.link
-                navigate={~p"/users/settings"}
-                class="text-sm font-semibold leading-6 hover:text-zinc-700 dark:hover:text-zinc-300"
-              >
-                Settings
-              </.link>
-            </li>
-            <li>
-              <.link
-                href={~p"/users/log-out"}
-                method="delete"
-                class="text-sm font-semibold leading-6 hover:text-zinc-700 dark:hover:text-zinc-300"
-              >
-                Log out
-              </.link>
-            </li>
-          <% else %>
-            <li>
-              <.link
-                href={~p"/auth/oidc"}
-                class="text-sm font-semibold leading-6 hover:text-zinc-700 dark:hover:text-zinc-300"
-              >
-                Log in
-              </.link>
-            </li>
-          <% end %>
-          <li>
-            <.theme_toggle />
-          </li>
-        </ul>
-      </div>
-    </header>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto space-y-4">
+      <div class="flex-none gap-2">
+        <.theme_toggle />
+
+        <%= if @current_scope.user do %>
+          <div class="dropdown dropdown-end">
+            <div
+              tabindex="0"
+              role="button"
+              class="btn btn-ghost gap-3 pl-2 pr-1 rounded-full h-10 min-h-0"
+            >
+              <span class="text-sm font-semibold hidden lg:block">
+                {@current_scope.user.name || "User"}
+              </span>
+              <div class="avatar">
+                <div class="w-8 rounded-full ring ring-primary/20 ring-offset-base-100 ring-offset-1">
+                  <img
+                    alt="Avatar"
+                    src={
+                      @current_scope.user.avatar_url ||
+                        "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp"
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+            <ul
+              tabindex="0"
+              class="menu menu-sm dropdown-content bg-base-100 rounded-box z-[1] mt-3 w-52 p-2 shadow-xl border border-base-content/10"
+            >
+              <li class="md:hidden">
+                <.link navigate={~p"/library"}>
+                  <.icon name="hero-rectangle-stack" class="size-4" /> Library
+                </.link>
+              </li>
+              <li class="md:hidden">
+                <.link navigate={~p"/ingest"}>
+                  <.icon name="hero-arrow-up-tray" class="size-4" /> Ingest
+                </.link>
+              </li>
+              <li>
+                <.link navigate={~p"/users/settings"}>
+                  <.icon name="hero-cog-6-tooth" class="size-4" /> Settings
+                </.link>
+              </li>
+              <div class="divider my-1"></div>
+              <li>
+                <.link href={~p"/users/log-out"} method="delete" class="text-error">
+                  <.icon name="hero-arrow-right-on-rectangle" class="size-4" /> Logout
+                </.link>
+              </li>
+            </ul>
+          </div>
+        <% else %>
+          <.link href={~p"/auth/oidc"} class="btn btn-primary btn-sm">Log in</.link>
+        <% end %>
+      </div>
+    </div>
+
+    <main class="px-4 py-8 sm:px-6 lg:px-8">
+      <div class="mx-auto max-w-7xl">
         {render_slot(@inner_block)}
       </div>
     </main>
@@ -124,7 +125,11 @@ defmodule SonnetWeb.Layouts do
 
   def flash_group(assigns) do
     ~H"""
-    <div id={@id} aria-live="polite">
+    <div
+      id={@id}
+      aria-live="polite"
+      class="fixed top-4 right-4 z-50 flex flex-col gap-2 w-full max-w-sm"
+    >
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
 
@@ -162,32 +167,52 @@ defmodule SonnetWeb.Layouts do
   """
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 transition-[left]" />
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="system"
+    <div class="dropdown dropdown-end">
+      <div tabindex="0" role="button" class="btn btn-ghost btn-circle btn-sm">
+        <div class="relative size-[1.2rem]">
+          <.icon
+            name="hero-sun"
+            class="absolute inset-0 size-full transition-all scale-100 rotate-0 dark:scale-0 dark:rotate-90"
+          />
+          <.icon
+            name="hero-moon"
+            class="absolute inset-0 size-full transition-all scale-0 -rotate-90 dark:scale-100 dark:rotate-0"
+          />
+        </div>
+        <span class="sr-only">Toggle theme</span>
+      </div>
+      <ul
+        tabindex="0"
+        class="dropdown-content z-[1] menu p-2 shadow-xl bg-base-100 rounded-box w-32 border border-base-content/10"
       >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
-      >
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="dark"
-      >
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
+        <li>
+          <button
+            phx-click={JS.dispatch("phx:set-theme")}
+            data-phx-theme="light"
+            onclick="document.activeElement.blur()"
+          >
+            <.icon name="hero-sun-micro" class="size-4" /> Light
+          </button>
+        </li>
+        <li>
+          <button
+            phx-click={JS.dispatch("phx:set-theme")}
+            data-phx-theme="dark"
+            onclick="document.activeElement.blur()"
+          >
+            <.icon name="hero-moon-micro" class="size-4" /> Dark
+          </button>
+        </li>
+        <li>
+          <button
+            phx-click={JS.dispatch("phx:set-theme")}
+            data-phx-theme="system"
+            onclick="document.activeElement.blur()"
+          >
+            <.icon name="hero-computer-desktop-micro" class="size-4" /> System
+          </button>
+        </li>
+      </ul>
     </div>
     """
   end

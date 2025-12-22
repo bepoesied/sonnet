@@ -13,29 +13,30 @@ defmodule SonnetWeb.BookComponents do
     ~H"""
     <div
       id={@id}
-      class="cursor-pointer group"
+      class="card bg-base-200 shadow-xl cursor-pointer hover:scale-105 transition-transform group"
       phx-click="play"
       phx-value-id={@book.id}
     >
-      <div class="aspect-square bg-zinc-800 rounded-lg overflow-hidden shadow-lg group-hover:shadow-xl transition-shadow relative">
+      <figure class="aspect-square relative overflow-hidden">
         <img
           :if={@book.cover_s3_key}
           src={Library.presigned_url(@book.cover_s3_key)}
+          alt={@book.title}
           class="w-full h-full object-cover"
         />
         <div
           :if={!@book.cover_s3_key}
-          class="w-full h-full flex items-center justify-center text-zinc-500"
+          class="w-full h-full flex items-center justify-center bg-neutral text-neutral-content"
         >
           <.icon name="hero-book-open" class="w-12 h-12" />
         </div>
         <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
           <.icon name="hero-play-circle" class="w-16 h-16 text-white" />
         </div>
-      </div>
-      <div class="mt-4 text-center">
-        <h3 class="text-lg font-bold text-zinc-100 leading-tight">{@book.title}</h3>
-        <p class="text-zinc-400 mt-1.5 truncate">{@book.author}</p>
+      </figure>
+      <div class="card-body p-3 sm:p-4 text-center items-center">
+        <h2 class="card-title text-sm sm:text-base justify-center">{@book.title}</h2>
+        <p class="text-xs opacity-70 truncate w-full">{@book.author}</p>
       </div>
     </div>
     """
@@ -53,24 +54,30 @@ defmodule SonnetWeb.BookComponents do
     ~H"""
     <div
       :if={@playing_book}
-      class="fixed bottom-0 left-0 right-0 bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 p-4 shadow-2xl z-50"
+      class="fixed bottom-0 left-0 right-0 bg-base-300/95 backdrop-blur-md border-t border-base-content/10 p-2 sm:p-4 shadow-2xl z-50"
     >
-      <div class="max-w-4xl mx-auto flex items-center gap-6">
-        <div class="hidden sm:block w-16 h-16 bg-zinc-800 rounded overflow-hidden flex-shrink-0">
-          <img
-            :if={@playing_book.cover_s3_key}
-            src={Library.presigned_url(@playing_book.cover_s3_key)}
-            class="w-full h-full object-cover"
-          />
+      <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center gap-2 sm:gap-6">
+        <div class="flex items-center w-full sm:w-auto gap-3">
+          <div class="w-12 h-12 sm:w-16 sm:h-16 bg-neutral rounded overflow-hidden flex-shrink-0">
+            <img
+              :if={@playing_book.cover_s3_key}
+              src={Library.presigned_url(@playing_book.cover_s3_key)}
+              class="w-full h-full object-cover"
+            />
+          </div>
+          <div class="flex-grow min-w-0">
+            <h4 class="font-bold text-sm sm:text-base truncate">{@playing_book.title}</h4>
+            <p class="text-xs opacity-70 truncate">{@playing_book.author}</p>
+            <p :if={@playing_chapter} class="text-[10px] opacity-50 truncate">
+              {@playing_chapter.title}
+            </p>
+          </div>
+          <button phx-click="stop" class="btn btn-ghost btn-circle btn-sm sm:hidden">
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
         </div>
-        <div class="flex-grow min-w-0">
-          <h4 class="font-bold text-zinc-100 truncate">{@playing_book.title}</h4>
-          <p class="text-sm text-zinc-400 truncate">{@playing_book.author}</p>
-          <p :if={@playing_chapter} class="text-xs text-zinc-500 mt-0.5 truncate">
-            {@playing_chapter.title}
-          </p>
-        </div>
-        <div class="flex-grow max-w-2xl">
+
+        <div class="w-full flex-grow max-w-2xl">
           <audio
             id={"audio-player-#{@playing_book.id}"}
             controls
@@ -91,7 +98,8 @@ defmodule SonnetWeb.BookComponents do
             Your browser does not support the audio element.
           </audio>
         </div>
-        <button phx-click="stop" class="text-zinc-400 hover:text-zinc-100 transition-colors">
+
+        <button phx-click="stop" class="hidden sm:inline-flex btn btn-ghost btn-circle">
           <.icon name="hero-x-mark" class="w-6 h-6" />
         </button>
       </div>

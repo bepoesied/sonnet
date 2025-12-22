@@ -5,10 +5,17 @@ defmodule SonnetWeb.BookLive.Ingest do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="text-center flex flex-col gap-6">
-        <.header>
-          Upload Book
-        </.header>
+      <div class="flex flex-col gap-6">
+        <div class="flex items-center gap-6 py-12">
+          <.link
+            patch={~p"/library"}
+            class="btn btn-primary btn-circle shadow-md hover:scale-110 transition-transform"
+            title="Back to Library"
+          >
+            <.icon name="hero-arrow-left" class="size-6" />
+          </.link>
+          <h1 class="text-4xl font-bold tracking-tight">Upload Book</h1>
+        </div>
         <form id="upload-form" phx-change="validate" phx-submit="save" class="flex flex-col gap-2">
           <label for={@uploads.book.ref} phx-drop-target={@uploads.book.ref}>
             <.live_file_input upload={@uploads.book} class="file-input" />

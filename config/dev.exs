@@ -9,7 +9,7 @@ config :sonnet,
   ingest_prefix: ""
 
 config :ex_aws, :s3,
-  host: "localhost",
+  host: "viper.lan.kmr.internal",
   scheme: "http://",
   region: "us-east-1",
   port: 9000
@@ -17,7 +17,7 @@ config :ex_aws, :s3,
 config :ueberauth_oidcc, :issuers, [
   %{
     name: :oidcc_issuer,
-    issuer: "http://localhost:8080/realms/dev",
+    issuer: "http://viper.lan.kmr.internal:8080/realms/dev",
     provider_configuration_opts: %{
       quirks: %{
         allow_unsafe_http: true,
@@ -65,7 +65,7 @@ config :sonnet, SonnetWeb.Endpoint,
     keyfile: "priv/cert/selfsigned_key.pem",
     certfile: "priv/cert/selfsigned.pem"
   ],
-  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT") || "4000")],
+  http: [ip: {0, 0, 0, 0}, port: String.to_integer(System.get_env("PORT") || "4000")],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,

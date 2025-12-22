@@ -54,6 +54,7 @@
     buckets = [ "sonnet-dev" ];
     region = "us-east-1";
     secretKey = "minioadmin";
+    listenAddress = "0.0.0.0:9000";
   };
 
   services.keycloak = {
@@ -64,7 +65,8 @@
       import = true;
     };
     settings = {
-      http-host = "127.0.0.1";
+      hostname = "viper.lan.kmr.internal";
+      http-host = "0.0.0.0";
       http-port = 8080;
       https-port = 34429;
       http-management-port = lib.mkForce 8081;
