@@ -75,7 +75,8 @@ defmodule SonnetWeb.BookComponents do
             id={"audio-player-#{@playing_book.id}"}
             controls
             autoplay
-            src={@audio_url}
+            preload="auto"
+            src={"#{@audio_url}#t=#{@start_at / 1000}"}
             class="w-full h-10"
             phx-hook="AudioPlayer"
             data-book-id={@playing_book.id}
