@@ -21,6 +21,7 @@ defmodule SonnetWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/health", HealthCheckController, :index
   end
 
   # Other scopes may use custom stacks.

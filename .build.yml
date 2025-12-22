@@ -3,7 +3,7 @@ packages:
   - podman
   - iptables
   - qemu-openrc
-  - qemu-aarch66
+  - qemu-aarch64
 secrets:
   - f2e4a894-42a3-4657-a693-ad1acb355059
 sources:
