@@ -14,7 +14,7 @@ defmodule SonnetWeb.BookComponents do
     <div
       id={@id}
       tabindex="0"
-      class="card bg-base-200 shadow-xl cursor-pointer hover:scale-105 focus-within:scale-105 transition-transform group focus:outline-none"
+      class="card bg-base-200 shadow-xl cursor-pointer transition-transform group focus:outline-none [@media(hover:hover)]:hover:scale-105 [@media(hover:none)]:focus:scale-105 focus-visible:scale-105 has-[:focus-visible]:scale-105"
     >
       <figure class="aspect-square relative overflow-hidden">
         <img
@@ -29,7 +29,7 @@ defmodule SonnetWeb.BookComponents do
         >
           <.icon name="hero-book-open" class="w-12 h-12" />
         </div>
-        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/40 opacity-0 transition-opacity flex items-center justify-center [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-[:focus-visible]:opacity-100">
           <button
             type="button"
             phx-click="play"

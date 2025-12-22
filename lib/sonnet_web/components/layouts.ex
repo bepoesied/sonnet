@@ -37,12 +37,14 @@ defmodule SonnetWeb.Layouts do
     ~H"""
     <header class="navbar bg-base-100 sticky top-0 z-40 border-b border-base-content/5 px-4 sm:px-6 lg:px-8">
       <div class="navbar-start">
-        <.link navigate={~p"/"} class="flex items-center gap-2 group">
-          <div class="bg-primary text-primary-content p-1.5 rounded-lg group-hover:scale-110 transition-transform">
-            <.icon name="hero-musical-note" class="size-6" />
-          </div>
-          <span class="text-xl font-bold tracking-tight">Sonnet</span>
-        </.link>
+        <div>
+          <.link navigate={~p"/"} class="flex items-center gap-2 group">
+            <div class="bg-primary text-primary-content p-1.5 rounded-lg group-hover:scale-110 transition-transform">
+              <.icon name="hero-musical-note" class="size-6" />
+            </div>
+            <span class="text-xl font-bold tracking-tight">Sonnet</span>
+          </.link>
+        </div>
       </div>
 
       <div class="navbar-end gap-2">
