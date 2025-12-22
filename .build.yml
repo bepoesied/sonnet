@@ -30,7 +30,7 @@ tasks:
   - calculate-image-name: |
       TAG="${GIT_REF##*/}"
       IMAGE_NAME="${REGISTRY}/${REPOSITORY}:${TAG}"
-      CACHE_IMAGE="${REGISTRY}/${REPOSITORY}:cache"
+      CACHE_IMAGE="${REGISTRY}/${REPOSITORY}"
       echo "export IMAGE_NAME=\"${IMAGE_NAME}\"" >> ~/.buildenv
       echo "export CACHE_IMAGE=\"${CACHE_IMAGE}\"" >> ~/.buildenv
   - create-manifest: |
@@ -38,7 +38,6 @@ tasks:
   - build-images: |
       cd "${CODE_DIR}"
       podman build \
-        --layers \
         --platform linux/amd64,linux/arm64 \
         --manifest "${IMAGE_NAME}" \
         --cache-from "${CACHE_IMAGE}" \
