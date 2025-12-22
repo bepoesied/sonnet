@@ -46,7 +46,7 @@ environment.
   generate one using:
 
   ```bash
-  openssl rand -base64 48
+  openssl rand -base64 64 | paste --delimiters '' --serial
   ```
 
 - `DNS_CLUSTER_QUERY`: (Optional) Used for service discovery in clustered
