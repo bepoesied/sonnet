@@ -1,34 +1,40 @@
 image: alpine/edge
 packages:
-  - nix
+  - podman
+  - iptables
+  - qemu-openrc
+  - qemu-aarch66
+secrets:
+  - f2e4a894-42a3-4657-a693-ad1acb355059
 sources:
   - git@git.sr.ht:~drangon/sonnet
 environment:
-  SECRETSPEC_PROVIDER: env
-  SECRETSPEC_PROFILE: ci
+  REGISTRY: quay.io
+  REPOSITORY: drangon/sonnet
+  CODE_DIR: sonnet
 tasks:
-  - setup-nix: |
-      export RUNNER=$(whoami)
-      sudo addgroup $RUNNER nix
-
-      cat <<EOF | sudo tee /etc/nix/nix.conf > /dev/null
-      allowed-users = @nix
-      trusted-users = root @nix
-      build-users-group = nixbld
-      max-jobs = 4
-      EOF
-
-      echo 'export PATH=$PATH:$HOME/.nix-profile/bin' >> .buildenv
-
-      sudo rc-update add nix-daemon
-      sudo service nix-daemon start
-  - install-tools: |
-      nix-env -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable -iA devenv secretspec cachix
-  - setup-cachix: |
-      cachix use devenv
-  - check-secretspec: |
-      cd sonnet
-      secretspec check
-  - devenv-test: |
-      cd sonnet
-      devenv test
+  - setup-cgroups: |
+      sudo rc-update add cgroups
+      sudo rc-service cgroups start
+  - setup-podman: |
+      RUNNER=$(whoami)
+      sudo modprobe tun
+      echo "tun" | sudo tee -a /etc/modules
+      echo "${RUNNER}:100000:65536" | sudo tee -a /etc/subuid
+      echo ${RUNNER}:100000:65536 | sudo tee -a /etc/subgid
+  - setup-qemu: |
+      sudo modprobe binfmt_misc
+      echo "binfmt_misc" | sudo tee -a /etc/modules
+      sudo rc-update add qemu-binfmt
+      sudo rc-service qemu-binfmt start
+  - calculate-image-name: |
+      TAG="${GIT_REF##*/}"
+      IMAGE_NAME="${REGISTRY}/${REPOSITORY}:${TAG}"
+      echo "export IMAGE_NAME=${IMAGE_NAME}" >> ~/.buildenv
+  - create-manifest: |
+      podman manifest create "${IMAGE_NAME}"
+  - build-images: |
+      cd $CODE_DIR
+      podman build --platform linux/amd64,linux/arm64 --manifest ${IMAGE_NAME} .
+  - push-images: |
+      podman manifest push "${IMAGE_NAME}"
