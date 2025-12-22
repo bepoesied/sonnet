@@ -35,7 +35,7 @@ defmodule SonnetWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <div class="navbar bg-base-100 sticky top-0 z-40 px-4 sm:px-6 lg:px-8 h-16">
+    <div class="navbar bg-base-100 sticky top-0 z-40 px-4 sm:px-6 lg:px-8 h-16 flex items-center">
       <div class="flex-1">
         <.link navigate={~p"/"} class="flex items-center gap-2 group">
           <div class="bg-primary text-primary-content p-1.5 rounded-lg group-hover:scale-110 transition-transform">
@@ -44,54 +44,36 @@ defmodule SonnetWeb.Layouts do
           <span class="text-xl font-bold tracking-tight">Sonnet</span>
         </.link>
       </div>
-
-      <div class="flex-none gap-2">
+      <div class="flex-none flex items-center gap-2">
         <.theme_toggle />
-
-        <%= if @current_scope.user do %>
+        <%= if @current_scope && @current_scope.user do %>
           <div class="dropdown dropdown-end">
             <div
               tabindex="0"
               role="button"
-              class="btn btn-ghost gap-3 pl-2 pr-1 rounded-full h-10 min-h-0"
+              class="btn btn-ghost gap-3 px-1 lg:pl-2 lg:pr-1 rounded-full h-10 w-10 lg:w-auto min-h-0 flex items-center justify-center"
             >
-              <span class="text-sm font-semibold hidden lg:block">
+              <div class="text-sm font-semibold hidden lg:block">
                 {@current_scope.user.name || "User"}
-              </span>
-              <div class="avatar">
-                <div class="w-8 rounded-full ring ring-primary/20 ring-offset-base-100 ring-offset-1">
+              </div>
+              <div class="w-8 h-8 rounded-full bg-base-300 text-base-content flex items-center justify-center overflow-hidden shrink-0">
+                <%= if @current_scope.user.avatar_url do %>
                   <img
                     alt="Avatar"
-                    src={
-                      @current_scope.user.avatar_url ||
-                        "https://img.daisyui.com/images/stock/photo-1534528741775-53994a69daeb.webp"
-                    }
+                    src={@current_scope.user.avatar_url}
+                    class="w-full h-full object-cover"
                   />
-                </div>
+                <% else %>
+                  <.icon name="hero-user" class="size-5" />
+                <% end %>
               </div>
             </div>
             <ul
               tabindex="0"
               class="menu menu-sm dropdown-content bg-base-100 rounded-box z-[1] mt-3 w-52 p-2 shadow-xl border border-base-content/10"
             >
-              <li class="md:hidden">
-                <.link navigate={~p"/library"}>
-                  <.icon name="hero-rectangle-stack" class="size-4" /> Library
-                </.link>
-              </li>
-              <li class="md:hidden">
-                <.link navigate={~p"/ingest"}>
-                  <.icon name="hero-arrow-up-tray" class="size-4" /> Ingest
-                </.link>
-              </li>
               <li>
-                <.link navigate={~p"/users/settings"}>
-                  <.icon name="hero-cog-6-tooth" class="size-4" /> Settings
-                </.link>
-              </li>
-              <div class="divider my-1"></div>
-              <li>
-                <.link href={~p"/users/log-out"} method="delete" class="text-error">
+                <.link href={~p"/users/log-out"} method="delete" class="text-primary">
                   <.icon name="hero-arrow-right-on-rectangle" class="size-4" /> Logout
                 </.link>
               </li>
@@ -168,7 +150,7 @@ defmodule SonnetWeb.Layouts do
   def theme_toggle(assigns) do
     ~H"""
     <div class="dropdown dropdown-end">
-      <div tabindex="0" role="button" class="btn btn-ghost btn-circle btn-sm">
+      <div tabindex="0" role="button" class="btn btn-ghost btn-circle h-10 w-10 min-h-0">
         <div class="relative size-[1.2rem]">
           <.icon
             name="hero-sun"
