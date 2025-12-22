@@ -11,6 +11,8 @@ sources:
 environment:
   REGISTRY: quay.io
   REPOSITORY: drangon/sonnet
+  CACHE_REGISTRY: quay.io
+  CACHE_REPOSITORY: drangon/sonnet-cache
   CODE_DIR: sonnet
 tasks:
   - setup-cgroups: |
@@ -30,7 +32,7 @@ tasks:
   - calculate-image-name: |
       TAG="${GIT_REF##*/}"
       IMAGE_NAME="${REGISTRY}/${REPOSITORY}:${TAG}"
-      CACHE_IMAGE="${REGISTRY}/${REPOSITORY}"
+      CACHE_IMAGE="${CACHE_REGISTRY}/${CACHE_REPOSITORY}"
       echo "export IMAGE_NAME=\"${IMAGE_NAME}\"" >> ~/.buildenv
       echo "export CACHE_IMAGE=\"${CACHE_IMAGE}\"" >> ~/.buildenv
   - create-manifest: |
