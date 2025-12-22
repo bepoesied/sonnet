@@ -5,7 +5,15 @@ defmodule SonnetWeb.LibraryLive do
   @impl true
   def mount(_params, _session, socket) do
     books = Library.list_books()
-    {:ok, assign(socket, books: books, playing_book: nil, audio_url: nil, start_at: 0)}
+
+    {:ok,
+     assign(socket,
+       books: books,
+       playing_book: nil,
+       playing_chapter: nil,
+       audio_url: nil,
+       start_at: 0
+     )}
   end
 
   @impl true
@@ -90,32 +98,107 @@ defmodule SonnetWeb.LibraryLive do
 
   @impl true
   def handle_event("play", %{"id" => id}, socket) do
-    book = Library.get_book!(id)
+    id = String.to_integer(id)
 
-    # Mocking play position retrieval.
-    # In a real app, you'd fetch this from the database.
-    start_at = 0
+    if socket.assigns.playing_book && socket.assigns.playing_book.id == id do
+      {:noreply, socket}
+    else
+      book = Library.get_book!(id)
+      user_id = socket.assigns.current_scope.user.id
 
-    # For now, assume all books are single media assets.
-    # We'll take the media asset from the first chapter.
-    case book.chapters do
-      [first_chapter | _] ->
-        audio_url = Library.presigned_url(first_chapter.media_asset.s3_key)
-        {:noreply, assign(socket, playing_book: book, audio_url: audio_url, start_at: start_at)}
+      progress = Library.get_listen_progress(user_id, book.id)
 
-      [] ->
-        {:noreply, put_flash(socket, :error, "This book has no audio.")}
+      {chapter, offset_ms} =
+        if progress && progress.chapter do
+          {progress.chapter, progress.offset_ms}
+        else
+          {List.first(book.chapters), 0}
+        end
+
+      case chapter do
+        %{media_asset: %{s3_key: s3_key}} ->
+          audio_url = Library.presigned_url(s3_key)
+          start_at = chapter.start_ms + offset_ms
+
+          {:noreply,
+           assign(socket,
+             playing_book: book,
+             playing_chapter: chapter,
+             audio_url: audio_url,
+             start_at: start_at
+           )}
+
+        _ ->
+          {:noreply, put_flash(socket, :error, "This book has no audio.")}
+      end
     end
   end
 
   @impl true
   def handle_event("save_position", %{"id" => id, "position_ms" => position_ms}, socket) do
-    IO.puts("Saving position for book #{id}: #{position_ms}s")
-    {:noreply, socket}
+    user_id = socket.assigns.current_scope.user.id
+    book_id = String.to_integer(id)
+    playing_book = socket.assigns.playing_book
+    playing_chapter = socket.assigns.playing_chapter
+
+    if playing_chapter && playing_chapter.book_id == book_id do
+      # Find the chapter that contains this position in the current audio file.
+      # This handles crossing boundaries in multi-chapter files (like .m4b).
+      new_chapter =
+        Enum.find(playing_book.chapters, fn c ->
+          c.media_asset_id == playing_chapter.media_asset_id and
+            position_ms >= c.start_ms and position_ms < c.end_ms
+        end) || playing_chapter
+
+      offset_ms = max(0, position_ms - new_chapter.start_ms)
+      Library.save_listen_progress(user_id, book_id, new_chapter.id, offset_ms)
+
+      {:noreply, assign(socket, playing_chapter: new_chapter)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("ended", %{"id" => id}, socket) do
+    user_id = socket.assigns.current_scope.user.id
+    book_id = String.to_integer(id)
+    playing_book = socket.assigns.playing_book
+    playing_chapter = socket.assigns.playing_chapter
+
+    if playing_chapter && playing_chapter.book_id == book_id do
+      next_chapter =
+        Enum.find(playing_book.chapters, fn c ->
+          c.position == playing_chapter.position + 1
+        end)
+
+      case next_chapter do
+        %{media_asset: %{s3_key: s3_key}} = chapter ->
+          audio_url = Library.presigned_url(s3_key)
+          # Start at the beginning of the new file's chapter range
+          start_at = chapter.start_ms
+
+          Library.save_listen_progress(user_id, book_id, chapter.id, 0)
+
+          {:noreply,
+           assign(socket,
+             playing_chapter: chapter,
+             audio_url: audio_url,
+             start_at: start_at
+           )}
+
+        _ ->
+          # No more chapters
+          {:noreply, assign(socket, playing_book: nil, playing_chapter: nil, audio_url: nil)}
+      end
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
   def handle_event("stop", _, socket) do
-    {:noreply, assign(socket, playing_book: nil, audio_url: nil, start_at: 0)}
+    {:noreply,
+     assign(socket, playing_book: nil, playing_chapter: nil, audio_url: nil, start_at: 0)}
   end
 end

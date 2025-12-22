@@ -1,3 +1,5 @@
+const DEBOUNCE_MS = 2 * 1000;
+
 export const AudioPlayer = {
   mounted() {
     this.lastUpdate = 0;
@@ -5,7 +7,7 @@ export const AudioPlayer = {
     this.el.addEventListener("timeupdate", (e) => {
       const now = Date.now();
       // Throttle updates to every 5 seconds
-      if (now - this.lastUpdate > 5000) {
+      if (now - this.lastUpdate > DEBOUNCE_MS) {
         this.lastUpdate = now;
         this.pushEvent("save_position", {
           id: this.el.dataset.bookId,
@@ -20,6 +22,12 @@ export const AudioPlayer = {
       this.pushEvent("save_position", {
         id: this.el.dataset.bookId,
         position_ms: Math.floor(this.el.currentTime * 1000),
+      });
+    });
+
+    this.el.addEventListener("ended", (e) => {
+      this.pushEvent("ended", {
+        id: this.el.dataset.bookId,
       });
     });
 

@@ -1,8 +1,10 @@
 defmodule Sonnet.Library do
+  import Ecto.Query, warn: false
   alias Sonnet.Repo
   alias Sonnet.Library.Chapter
   alias Sonnet.Library.Book
   alias Sonnet.Library.MediaAsset
+  alias Sonnet.Library.ListenProgress
 
   def create_media_asset!(s3_key) do
     Repo.insert!(MediaAsset.changeset(%MediaAsset{}, %{s3_key: s3_key}),
@@ -47,7 +49,29 @@ defmodule Sonnet.Library do
   end
 
   def get_book!(id) do
-    Repo.get!(Book, id) |> Repo.preload(chapters: :media_asset)
+    chapters_query = from c in Chapter, order_by: c.position, preload: [:media_asset]
+    Repo.get!(Book, id) |> Repo.preload(chapters: chapters_query)
+  end
+
+  def get_listen_progress(user_id, book_id) do
+    Repo.get_by(ListenProgress, user_id: user_id, book_id: book_id)
+    |> Repo.preload(chapter: [:media_asset])
+  end
+
+  def save_listen_progress(user_id, book_id, chapter_id, offset_ms) do
+    %ListenProgress{}
+    |> ListenProgress.changeset(%{
+      user_id: user_id,
+      book_id: book_id,
+      chapter_id: chapter_id,
+      offset_ms: offset_ms
+    })
+    |> Repo.insert(
+      on_conflict: [
+        set: [chapter_id: chapter_id, offset_ms: offset_ms, updated_at: DateTime.utc_now()]
+      ],
+      conflict_target: [:user_id, :book_id]
+    )
   end
 
   def presigned_url(nil), do: nil
