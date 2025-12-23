@@ -129,7 +129,7 @@ defmodule Sonnet.Workers.Ingester do
   end
 
   defp upload_cover(path, hash) do
-    key = "#{prefix()}/covers/#{hash}.jpg"
+    key = Path.join([prefix(), "covers", "#{hash}.jpg"])
 
     path
     |> ExAws.S3.Upload.stream_file()
@@ -156,7 +156,7 @@ defmodule Sonnet.Workers.Ingester do
   end
 
   defp prefix do
-    Application.get_env(:sonnet, :ingest_prefix)
+    Application.get_env(:sonnet, :ingest_prefix) || ""
   end
 
   defp full_key(s3_key) do

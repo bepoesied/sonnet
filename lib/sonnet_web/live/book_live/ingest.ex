@@ -136,7 +136,7 @@ defmodule SonnetWeb.BookLive.Ingest do
     config = ExAws.Config.new(:s3)
     bucket = Application.get_env(:sonnet, :ingest_bucket)
     prefix = Application.get_env(:sonnet, :ingest_prefix)
-    key = "#{prefix}/#{Ecto.UUID.generate()}"
+    key = Path.join(prefix, Ecto.UUID.generate())
 
     {:ok, url} =
       ExAws.S3.presigned_url(config, :put, bucket, key,

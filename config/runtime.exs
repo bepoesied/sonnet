@@ -40,7 +40,7 @@ if config_env() == :prod do
 
   config :sonnet,
     ingest_bucket: System.fetch_env!("SONNET_S3_BUCKET"),
-    ingest_prefix: System.get_env("SONNET_S3_PREFIX")
+    ingest_prefix: System.get_env("SONNET_S3_PREFIX", "")
 
   config :ex_aws, :s3,
     host: System.fetch_env!("SONNET_S3_HOST"),

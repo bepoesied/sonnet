@@ -47,11 +47,7 @@ defmodule Sonnet.Library do
 
     chapters =
       if chapters == [] do
-        duration_ms =
-          case Float.parse(format["duration"] || "0") do
-            {val, _} -> floor(val * 1000)
-            :error -> 0
-          end
+        duration_ms = floor(to_float(format["duration"]) * 1000)
 
         [%{"tags" => %{"title" => "Chapter 1"}, "start" => 0, "end" => duration_ms}]
       else
@@ -79,8 +75,8 @@ defmodule Sonnet.Library do
           Chapter.changeset(%Chapter{}, %{
             position: index,
             title: Map.get(chapter["tags"] || %{}, "title") || "Chapter #{index + 1}",
-            start_ms: floor(String.to_float(chapter["start_time"]) * 1000),
-            end_ms: ceil(String.to_float(chapter["end_time"]) * 1000),
+            start_ms: floor(to_float(chapter["start_time"]) * 1000),
+            end_ms: ceil(to_float(chapter["end_time"]) * 1000),
             book_id: book.id,
             media_asset_id: media_asset_id
           })
@@ -90,6 +86,18 @@ defmodule Sonnet.Library do
     end)
     |> Repo.transaction()
   end
+
+  defp to_float(nil), do: 0.0
+  defp to_float(val) when is_number(val), do: val / 1
+
+  defp to_float(val) when is_binary(val) do
+    case Float.parse(val) do
+      {float, _} -> float
+      :error -> 0.0
+    end
+  end
+
+  defp to_float(_), do: 0.0
 
   def list_books(user_id \\ nil) do
     query =
