@@ -93,10 +93,11 @@ defmodule Sonnet.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind sonnet", "esbuild sonnet"],
+      "assets.build": ["compile", "tailwind sonnet", "esbuild sonnet", "esbuild service_worker"],
       "assets.deploy": [
         "tailwind sonnet --minify",
         "esbuild sonnet --minify",
+        "esbuild service_worker --minify",
         "phx.digest"
       ],
       precommit: ["compile --warning-as-errors", "deps.unlock --unused", "format", "test"]

@@ -114,6 +114,7 @@ defmodule SonnetWeb.BookComponents do
             controls
             autoplay
             preload="auto"
+            crossorigin="anonymous"
             src={"#{@audio_url}#t=#{@start_at / 1000}"}
             class="w-full h-10"
             phx-hook="AudioPlayer"

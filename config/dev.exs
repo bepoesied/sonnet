@@ -72,6 +72,7 @@ config :sonnet, SonnetWeb.Endpoint,
   secret_key_base: "clMc/BHTzPlZMN2zMG4RWIyakTG9kcOFvjaHOSzi1mPsChUPaPWx1CIkwZ7oy9SX",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:sonnet, ~w(--sourcemap=inline --watch)]},
+    esbuild: {Esbuild, :install_and_run, [:service_worker, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:sonnet, ~w(--watch)]}
   ]
 
