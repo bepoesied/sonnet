@@ -33,6 +33,34 @@ defmodule SonnetWeb.BookLive.Ingest do
             {entry.progress}%
           </progress>
         </div>
+
+        <div class="divider">OR</div>
+
+        <div class="collapse collapse-arrow bg-base-200">
+          <input type="checkbox" />
+          <div class="collapse-title text-xl font-medium">
+            Advanced Import
+          </div>
+          <div class="collapse-content">
+            <.form
+              for={@bulk_form}
+              id="bulk-upload-form"
+              phx-submit="bulk_save"
+              class="flex flex-col gap-2"
+            >
+              <.input
+                field={@bulk_form[:keys]}
+                type="textarea"
+                label="S3 Keys (newline separated)"
+                placeholder="incoming/file1.m4b\nincoming/file2.m4b"
+                rows="10"
+              />
+              <.button type="submit">
+                Bulk Import
+              </.button>
+            </.form>
+          </div>
+        </div>
       </div>
     </Layouts.app>
     """
@@ -48,6 +76,7 @@ defmodule SonnetWeb.BookLive.Ingest do
         max_file_size: 5_000_000_000,
         external: &presign_upload/2
       )
+      |> assign(:bulk_form, to_form(%{"keys" => ""}, as: :bulk))
 
     {:ok, socket}
   end
@@ -56,6 +85,28 @@ defmodule SonnetWeb.BookLive.Ingest do
   def handle_event("validate", _params, socket) do
     socket =
       socket
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("bulk_save", %{"bulk" => %{"keys" => keys_string}}, socket) do
+    keys =
+      keys_string
+      |> String.split(["\n", "\r", "\r\n"], trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    for key <- keys do
+      %{s3_key: key, original_filename: Path.basename(key)}
+      |> Sonnet.Workers.Ingester.new()
+      |> Oban.insert()
+    end
+
+    socket =
+      socket
+      |> put_flash(:info, "Started importing #{length(keys)} files")
+      |> assign(:bulk_form, to_form(%{"keys" => ""}, as: :bulk))
 
     {:noreply, socket}
   end
