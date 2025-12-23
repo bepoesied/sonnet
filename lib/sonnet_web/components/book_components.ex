@@ -92,6 +92,7 @@ defmodule SonnetWeb.BookComponents do
             src={"#{@audio_url}#t=#{@start_at / 1000}"}
             class="w-full h-10"
             phx-hook="AudioPlayer"
+            phx-update="ignore"
             data-book-id={@playing_book.id}
             data-start-at={@start_at}
             data-title={@playing_book.title}
