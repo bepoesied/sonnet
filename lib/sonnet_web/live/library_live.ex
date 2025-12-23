@@ -26,7 +26,7 @@ defmodule SonnetWeb.LibraryLive do
         <div class="flex items-center gap-6 px-2 py-12">
           <h1 class="text-4xl font-bold tracking-tight">Library</h1>
           <.link
-            patch={~p"/ingest"}
+            navigate={~p"/ingest"}
             class="btn btn-primary btn-circle shadow-md hover:scale-110 transition-transform"
             title="Upload Book"
           >

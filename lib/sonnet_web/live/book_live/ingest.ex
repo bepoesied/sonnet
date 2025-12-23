@@ -8,7 +8,7 @@ defmodule SonnetWeb.BookLive.Ingest do
       <div class="flex flex-col gap-6">
         <div class="flex items-center gap-6 py-12">
           <.link
-            patch={~p"/library"}
+            navigate={~p"/library"}
             class="btn btn-primary btn-circle shadow-md hover:scale-110 transition-transform"
             title="Back to Library"
           >
