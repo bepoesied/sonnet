@@ -4,14 +4,16 @@
 , inputs
 , ...
 }:
-
+let
+  pkgs-unstable = import inputs.nixpkgs-unstable { system = pkgs.stdenv.system; };
+in
 {
   packages = [
     pkgs.git
     pkgs.nixd
     pkgs.watchman
     pkgs.hut
-
+    pkgs-unstable.opencode
     pkgs.ffmpeg
   ];
 
@@ -54,7 +56,7 @@
     buckets = [ "sonnet-dev" ];
     region = "us-east-1";
     secretKey = "minioadmin";
-    listenAddress = "0.0.0.0:9000";
+    listenAddress = "127.0.0.1:9000";
   };
 
   services.keycloak = {
@@ -65,8 +67,8 @@
       import = true;
     };
     settings = {
-      hostname = "viper.lan.kmr.internal";
-      http-host = "0.0.0.0";
+      hostname = "localhost";
+      http-host = "127.0.0.1";
       http-port = 8080;
       https-port = 34429;
       http-management-port = lib.mkForce 8081;

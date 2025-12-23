@@ -9,7 +9,7 @@ config :sonnet,
   ingest_prefix: ""
 
 config :ex_aws, :s3,
-  host: "viper.lan.kmr.internal",
+  host: "localhost",
   scheme: "http://",
   region: "us-east-1",
   port: 9000
@@ -17,7 +17,7 @@ config :ex_aws, :s3,
 config :ueberauth_oidcc, :issuers, [
   %{
     name: :oidcc_issuer,
-    issuer: "http://viper.lan.kmr.internal:8080/realms/dev",
+    issuer: "http://localhost:8080/realms/dev",
     provider_configuration_opts: %{
       quirks: %{
         allow_unsafe_http: true,
