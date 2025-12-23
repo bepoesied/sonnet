@@ -8,6 +8,7 @@ defmodule Sonnet.Library.Book do
     field :narrator, :string
     field :description, :string
     field :cover_s3_key, :string
+    field :is_completed, :boolean, virtual: true, default: false
 
     has_many :chapters, Sonnet.Library.Chapter
 

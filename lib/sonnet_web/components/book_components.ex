@@ -39,6 +39,29 @@ defmodule SonnetWeb.BookComponents do
             <.icon name="hero-play-circle" class="w-16 h-16" />
           </button>
         </div>
+
+        <div class="absolute top-2 right-2 z-10">
+          <button
+            :if={!@book.is_completed}
+            type="button"
+            phx-click="mark_complete"
+            phx-value-id={@book.id}
+            class="text-white/70 hover:text-white opacity-0 transition-opacity [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-[:focus-visible]:opacity-100 focus:outline-none"
+            title="Mark as Completed"
+          >
+            <.icon name="hero-check-circle" class="w-8 h-8" />
+          </button>
+          <button
+            :if={@book.is_completed}
+            type="button"
+            phx-click="mark_incomplete"
+            phx-value-id={@book.id}
+            class="text-secondary bg-base-200 rounded-full hover:scale-110 transition-transform focus:outline-none"
+            title="Mark as Incomplete"
+          >
+            <.icon name="hero-check-circle-solid" class="w-8 h-8" />
+          </button>
+        </div>
       </figure>
       <div class="card-body p-3 sm:p-4 text-center items-center">
         <h2 class="card-title text-sm sm:text-base justify-center">{@book.title}</h2>

@@ -5,10 +5,11 @@ defmodule SonnetWeb.LibraryLive do
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket), do: Library.subscribe()
+    user_id = socket.assigns.current_scope.user.id
 
     {:ok,
      socket
-     |> stream(:books, Library.list_books())
+     |> stream(:books, Library.list_books(user_id))
      |> assign(
        playing_book: nil,
        playing_chapter: nil,
@@ -55,26 +56,44 @@ defmodule SonnetWeb.LibraryLive do
   @impl true
   def handle_event("play", %{"id" => id}, socket) do
     id = String.to_integer(id)
+    user_id = socket.assigns.current_scope.user.id
 
     if socket.assigns.playing_book && socket.assigns.playing_book.id == id do
       {:noreply, socket}
     else
-      book = Library.get_book!(id)
-      user_id = socket.assigns.current_scope.user.id
+      book = Library.get_book_with_status!(id, user_id)
 
       progress = Library.get_listen_progress(user_id, book.id)
 
-      {chapter, offset_ms} =
-        if progress && progress.chapter do
-          {progress.chapter, progress.offset_ms}
-        else
-          {List.first(book.chapters), 0}
+      {chapter, offset_ms, should_reset} =
+        cond do
+          book.is_completed ->
+            {List.first(book.chapters), 0, true}
+
+          progress && progress.chapter ->
+            {progress.chapter, progress.offset_ms, false}
+
+          true ->
+            {List.first(book.chapters), 0, false}
         end
+
+      if should_reset do
+        Library.save_listen_progress(user_id, book.id, chapter.id, offset_ms, false)
+      end
 
       case chapter do
         %{media_asset: %{s3_key: s3_key}} ->
           audio_url = Library.presigned_url(s3_key)
           start_at = chapter.start_ms + offset_ms
+
+          socket =
+            if should_reset do
+              # Refresh book state in stream if it was completed
+              updated_book = %{book | is_completed: false}
+              stream_insert(socket, :books, updated_book)
+            else
+              socket
+            end
 
           {:noreply,
            assign(socket,
@@ -145,7 +164,13 @@ defmodule SonnetWeb.LibraryLive do
 
         _ ->
           # No more chapters
-          {:noreply, assign(socket, playing_book: nil, playing_chapter: nil, audio_url: nil)}
+          Library.mark_book_complete(user_id, book_id, playing_chapter.id)
+          updated_book = Library.get_book_with_status!(book_id, user_id)
+
+          {:noreply,
+           socket
+           |> assign(playing_book: nil, playing_chapter: nil, audio_url: nil)
+           |> stream_insert(:books, updated_book)}
       end
     else
       {:noreply, socket}
@@ -223,6 +248,45 @@ defmodule SonnetWeb.LibraryLive do
   end
 
   @impl true
+  def handle_event("mark_complete", %{"id" => id}, socket) do
+    book_id = String.to_integer(id)
+    user_id = socket.assigns.current_scope.user.id
+    book = Library.get_book!(book_id)
+
+    # Use first chapter if no progress exists
+    chapter_id =
+      case Library.get_listen_progress(user_id, book_id) do
+        nil -> List.first(book.chapters).id
+        progress -> progress.chapter_id
+      end
+
+    Library.mark_book_complete(user_id, book_id, chapter_id)
+
+    # Stop if playing
+    socket =
+      if socket.assigns.playing_book && socket.assigns.playing_book.id == book_id do
+        assign(socket, playing_book: nil, playing_chapter: nil, audio_url: nil, start_at: 0)
+      else
+        socket
+      end
+
+    updated_book = Library.get_book_with_status!(book_id, user_id)
+
+    {:noreply, stream_insert(socket, :books, updated_book)}
+  end
+
+  @impl true
+  def handle_event("mark_incomplete", %{"id" => id}, socket) do
+    book_id = String.to_integer(id)
+    user_id = socket.assigns.current_scope.user.id
+
+    Library.mark_book_incomplete(user_id, book_id)
+    updated_book = Library.get_book_with_status!(book_id, user_id)
+
+    {:noreply, stream_insert(socket, :books, updated_book)}
+  end
+
+  @impl true
   def handle_event("stop", _, socket) do
     {:noreply,
      assign(socket, playing_book: nil, playing_chapter: nil, audio_url: nil, start_at: 0)}
@@ -230,6 +294,7 @@ defmodule SonnetWeb.LibraryLive do
 
   @impl true
   def handle_info(:books_updated, socket) do
-    {:noreply, stream(socket, :books, Library.list_books(), reset: true)}
+    user_id = socket.assigns.current_scope.user.id
+    {:noreply, stream(socket, :books, Library.list_books(user_id), reset: true)}
   end
 end

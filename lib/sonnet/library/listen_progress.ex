@@ -4,6 +4,7 @@ defmodule Sonnet.Library.ListenProgress do
 
   schema "listen_progresses" do
     field :offset_ms, :integer
+    field :is_completed, :boolean, default: false
 
     belongs_to :book, Sonnet.Library.Book
     belongs_to :user, Sonnet.Accounts.User
@@ -15,7 +16,7 @@ defmodule Sonnet.Library.ListenProgress do
   @doc false
   def changeset(listen_progress, attrs) do
     listen_progress
-    |> cast(attrs, [:offset_ms, :user_id, :book_id, :chapter_id])
+    |> cast(attrs, [:offset_ms, :user_id, :book_id, :chapter_id, :is_completed])
     |> validate_required([:offset_ms, :user_id, :book_id, :chapter_id])
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:book_id)

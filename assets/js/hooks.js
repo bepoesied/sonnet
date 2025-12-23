@@ -45,6 +45,10 @@ export const AudioPlayer = {
     });
 
     this.el.addEventListener("seeked", () => {
+      this.pushEvent("save_position", {
+        id: this.el.dataset.bookId,
+        position_ms: Math.floor(this.el.currentTime * 1000),
+      });
       this.updatePositionState();
     });
 
