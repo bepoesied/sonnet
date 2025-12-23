@@ -85,28 +85,30 @@ defmodule SonnetWeb.BookComponents do
       :if={@playing_book}
       class="fixed bottom-0 left-0 right-0 bg-base-300/95 backdrop-blur-md border-t border-base-content/10 p-2 sm:p-4 shadow-2xl z-50"
     >
-      <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center gap-2 sm:gap-6">
-        <div class="flex items-center w-full sm:w-auto gap-3">
-          <div class="w-12 h-12 sm:w-16 sm:h-16 bg-neutral rounded overflow-hidden flex-shrink-0">
-            <img
-              :if={@playing_book.cover_s3_key}
-              src={Library.presigned_url(@playing_book.cover_s3_key)}
-              class="w-full h-full object-cover"
-            />
+      <div class="max-w-5xl mx-auto flex flex-col gap-1 sm:gap-2">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-12 h-12 sm:w-16 sm:h-16 bg-neutral rounded overflow-hidden flex-shrink-0">
+              <img
+                :if={@playing_book.cover_s3_key}
+                src={Library.presigned_url(@playing_book.cover_s3_key)}
+                class="w-full h-full object-cover"
+              />
+            </div>
+            <div class="min-w-0">
+              <h4 class="font-bold text-sm sm:text-base truncate">{@playing_book.title}</h4>
+              <p class="text-xs opacity-70 truncate">{@playing_book.author}</p>
+              <p :if={@playing_chapter} class="text-[10px] opacity-50 truncate">
+                {@playing_chapter.title}
+              </p>
+            </div>
           </div>
-          <div class="flex-grow min-w-0">
-            <h4 class="font-bold text-sm sm:text-base truncate">{@playing_book.title}</h4>
-            <p class="text-xs opacity-70 truncate">{@playing_book.author}</p>
-            <p :if={@playing_chapter} class="text-[10px] opacity-50 truncate">
-              {@playing_chapter.title}
-            </p>
-          </div>
-          <button phx-click="stop" class="btn btn-ghost btn-circle btn-sm sm:hidden">
-            <.icon name="hero-x-mark" class="w-5 h-5" />
+          <button phx-click="stop" class="btn btn-ghost btn-circle btn-sm sm:btn-md">
+            <.icon name="hero-x-mark" class="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
-        <div class="w-full flex-grow max-w-2xl">
+        <div class="w-full">
           <audio
             id={"audio-player-#{@playing_book.id}"}
             controls
@@ -128,10 +130,6 @@ defmodule SonnetWeb.BookComponents do
             Your browser does not support the audio element.
           </audio>
         </div>
-
-        <button phx-click="stop" class="hidden sm:inline-flex btn btn-ghost btn-circle">
-          <.icon name="hero-x-mark" class="w-6 h-6" />
-        </button>
       </div>
     </div>
     """
