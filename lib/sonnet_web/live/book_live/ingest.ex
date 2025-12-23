@@ -70,7 +70,7 @@ defmodule SonnetWeb.BookLive.Ingest do
       end)
 
     {:ok, _} =
-      %{s3_key: uploaded_file.key}
+      %{s3_key: uploaded_file.key, original_filename: uploaded_file.client_name}
       |> Sonnet.Workers.Ingester.new()
       |> Oban.insert()
 

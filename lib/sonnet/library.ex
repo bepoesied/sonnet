@@ -17,6 +17,8 @@ defmodule Sonnet.Library do
   alias Sonnet.Library.MediaAsset
   alias Sonnet.Library.ListenProgress
 
+  alias Ecto.Multi
+
   def create_media_asset!(s3_key) do
     Repo.insert!(MediaAsset.changeset(%MediaAsset{}, %{s3_key: s3_key}),
       on_conflict: :nothing,
@@ -25,34 +27,68 @@ defmodule Sonnet.Library do
     )
   end
 
+  def delete_media_asset_by_s3_key(s3_key) do
+    from(m in MediaAsset, where: m.s3_key == ^s3_key)
+    |> Repo.delete_all()
+  end
+
   def ingest_probe!(
-        %{"chapters" => chapters, "format" => format},
+        %{"format" => format} = probe,
         media_asset_id,
+        original_filename,
         cover_s3_key \\ nil
       ) do
-    book =
+    title = Map.get(format["tags"] || %{}, "title") || Path.rootname(original_filename)
+    author = Map.get(format["tags"] || %{}, "author")
+    narrator = Map.get(format["tags"] || %{}, "artist")
+    description = Map.get(format["tags"] || %{}, "description")
+
+    chapters = Map.get(probe, "chapters", [])
+
+    chapters =
+      if chapters == [] do
+        duration_ms =
+          case Float.parse(format["duration"] || "0") do
+            {val, _} -> floor(val * 1000)
+            :error -> 0
+          end
+
+        [%{"tags" => %{"title" => "Chapter 1"}, "start" => 0, "end" => duration_ms}]
+      else
+        chapters
+      end
+
+    Multi.new()
+    |> Multi.insert(
+      :book,
       Book.changeset(%Book{}, %{
-        title: format["tags"]["title"],
-        author: Map.get(format["tags"], "author"),
-        narrator: Map.get(format["tags"], "artist"),
-        description: Map.get(format["tags"], "description"),
+        title: title,
+        author: author,
+        narrator: narrator,
+        description: description,
         cover_s3_key: cover_s3_key
       })
-
-    {:ok, book} = Repo.insert(book)
-
-    {:ok, _chapters} =
+    )
+    |> Multi.merge(fn %{book: book} ->
       chapters
       |> Enum.with_index()
-      |> Enum.map(fn {chapter, index} ->
-        chapter = handle_chapter(book.id, media_asset_id, index, chapter)
+      |> Enum.reduce(Multi.new(), fn {chapter, index}, multi ->
         name = "insert_chapter_#{index}"
-        {chapter, name}
+
+        chapter_changeset =
+          Chapter.changeset(%Chapter{}, %{
+            position: index,
+            title: Map.get(chapter["tags"] || %{}, "title") || "Chapter #{index + 1}",
+            start_ms: floor(String.to_float(chapter["start_time"]) * 1000),
+            end_ms: ceil(String.to_float(chapter["end_time"]) * 1000),
+            book_id: book.id,
+            media_asset_id: media_asset_id
+          })
+
+        Multi.insert(multi, name, chapter_changeset)
       end)
-      |> Enum.reduce(Ecto.Multi.new(), fn {chapter, name}, multi ->
-        Ecto.Multi.insert(multi, name, chapter)
-      end)
-      |> Repo.transact()
+    end)
+    |> Repo.transaction()
   end
 
   def list_books(user_id \\ nil) do
@@ -136,16 +172,5 @@ defmodule Sonnet.Library do
 
     {:ok, url} = ExAws.S3.presigned_url(config, :get, bucket, s3_key, expires_in: 3600)
     url
-  end
-
-  defp handle_chapter(book_id, media_asset_id, index, chapter) do
-    Chapter.changeset(%Chapter{}, %{
-      position: index,
-      title: Map.get(chapter["tags"], "title"),
-      start_ms: chapter["start"],
-      end_ms: chapter["end"],
-      book_id: book_id,
-      media_asset_id: media_asset_id
-    })
   end
 end
