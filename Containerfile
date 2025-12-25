@@ -14,9 +14,27 @@
 ARG ELIXIR_VERSION=1.18.4
 ARG OTP_VERSION=27.3.4.6
 ARG DEBIAN_VERSION=trixie-20251208-slim
+ARG ALPINE_VERSION=3.22
 
 ARG BUILDER_IMAGE="docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
+ARG NODE_BUILDER_IMAGE="node:25.2.1-alpine${ALPINE_VERSION}"
 ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}"
+
+FROM ${NODE_BUILDER_IMAGE} as node-builder
+
+# prepare build dir
+RUN mkdir -p /app/assets
+WORKDIR /app
+
+# set build ENV
+ENV NODE_ENV=prod
+
+# install npm dependencies
+COPY assets/package.json assets/package-lock.json ./assets/
+RUN npm --prefix assets ci
+
+# build assets
+COPY assets assets
 
 FROM ${BUILDER_IMAGE} AS builder
 
@@ -55,7 +73,7 @@ COPY lib lib
 # Compile the release
 RUN mix compile
 
-COPY assets assets
+COPY --from=node-builder /app/assets assets
 
 # compile assets
 RUN mix assets.deploy
