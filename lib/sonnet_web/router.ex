@@ -24,18 +24,19 @@ defmodule SonnetWeb.Router do
     get "/health", HealthCheckController, :index
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", SonnetWeb do
-  #   pipe_through :api
-  # end
+  # API routes
+  scope "/api", SonnetWeb.API do
+    pipe_through [:browser, :require_authenticated_user]
+
+    get "/books/:id", BookController, :show
+    get "/books/:id/progress", BookController, :progress
+    put "/books/:id/progress", BookController, :update_progress
+    put "/books/:id/complete", BookController, :complete
+    put "/books/:id/incomplete", BookController, :incomplete
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:sonnet, :dev_routes) do
-    # If you want to use the LiveDashboard in production, you should put
-    # it behind authentication and allow only admins to access it.
-    # If your application does not have an admins-only section yet,
-    # you can use Plug.BasicAuth to set up some basic authentication
-    # as long as you are also using SSL (which you should anyway).
     import Phoenix.LiveDashboard.Router
     import Oban.Web.Router
 
@@ -47,10 +48,11 @@ defmodule SonnetWeb.Router do
     end
   end
 
-  ## Authentication routes
-
+  # Authenticated routes
   scope "/", SonnetWeb do
     pipe_through [:browser, :require_authenticated_user]
+
+    get "/player/:book_id", PlayerController, :show
 
     live_session :require_authenticated_user,
       on_mount: [{SonnetWeb.UserAuth, :require_authenticated}] do

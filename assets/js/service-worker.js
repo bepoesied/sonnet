@@ -49,7 +49,6 @@ function getCacheKey(url) {
 async function handlePresignedRequest(event, url) {
   const request = event.request;
   const cacheKey = getCacheKey(url);
-  const isAudio = request.destination === "audio";
 
   try {
     const cache = await caches.open(CACHE_NAME);
@@ -62,40 +61,15 @@ async function handlePresignedRequest(event, url) {
       return cachedResponse;
     }
 
-    // Not in cache: Forward request and download full file in background
+    // Not in cache: Fetch via network
     const networkResponse = await fetch(request);
 
-    // Only background-download if it's a 2xx response
-    if (networkResponse.ok || networkResponse.type === "opaque") {
-      const downloadPromise = (async () => {
-        try {
-          // If we already have a full 200 response and it's not opaque, we could use it.
-          // But usually audio requests are range requests (206), so we need to fetch the full file.
-          if (
-            networkResponse.status === 200 &&
-            networkResponse.type !== "opaque"
-          ) {
-            await cache.put(cacheKey, networkResponse.clone());
-            return;
-          }
-
-          // Fetch full file. For opaque requests (like images without CORS),
-          // we fetch with no-cors to ensure it works.
-          const fetchOptions = {
-            method: "GET",
-            mode: networkResponse.type === "opaque" ? "no-cors" : "cors",
-            credentials: request.credentials,
-          };
-
-          const response = await fetch(url.toString(), fetchOptions);
-          if (response.ok || response.type === "opaque") {
-            await cache.put(cacheKey, response);
-          }
-        } catch (err) {
-          // Background download failed, that's okay.
-        }
-      })();
-      event.waitUntil(downloadPromise);
+    // If it's a 200 or 206, and we're not currently background-caching this file,
+    // we should fetch the whole thing for the cache.
+    if (networkResponse.ok || networkResponse.status === 206) {
+      event.waitUntil(
+        backgroundCache(cacheKey, url.toString(), request.credentials),
+      );
     }
 
     return networkResponse;
@@ -104,23 +78,39 @@ async function handlePresignedRequest(event, url) {
   }
 }
 
+async function backgroundCache(cacheKey, url, credentials) {
+  const cache = await caches.open(CACHE_NAME);
+  const existing = await cache.match(cacheKey);
+  if (existing) return;
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: credentials,
+      mode: "cors", // Force cors to ensure we can read the response/serve ranges
+    });
+
+    if (response.ok) {
+      await cache.put(cacheKey, response);
+    }
+  } catch (err) {
+    // Background fetch failed
+  }
+}
+
 async function serveRange(response, request) {
   const buffer = await response.arrayBuffer();
   const rangeHeader = request.headers.get("range");
   const size = buffer.byteLength;
 
-  // Parse range: bytes=start-end
   const parts = rangeHeader.replace(/bytes=/, "").split("-");
   let start = parseInt(parts[0], 10);
   let end = parts[1] ? parseInt(parts[1], 10) : size - 1;
 
   if (isNaN(start)) start = 0;
   if (isNaN(end)) end = size - 1;
-
-  // Cap end at size - 1
   if (end >= size) end = size - 1;
 
-  // If start is beyond size (416 Range Not Satisfiable)
   if (start >= size) {
     return new Response(null, {
       status: 416,
@@ -136,8 +126,7 @@ async function serveRange(response, request) {
       "Content-Range": `bytes ${start}-${end}/${size}`,
       "Accept-Ranges": "bytes",
       "Content-Length": chunk.byteLength,
-      "Content-Type":
-        response.headers.get("Content-Type") || "application/octet-stream",
+      "Content-Type": response.headers.get("Content-Type") || "audio/mpeg",
     },
   });
 }

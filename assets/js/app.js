@@ -26,6 +26,7 @@ import { hooks as colocatedHooks } from "phoenix-colocated/sonnet";
 import topbar from "../vendor/topbar";
 import Uploaders from "./uploaders";
 import Hooks from "./hooks";
+import "./player";
 
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")
@@ -54,7 +55,7 @@ window.liveSocket = liveSocket;
 // The lines below enable quality of life phoenix_live_reload
 // development features:
 //
-//     1. stream server logs to the browser console
+//     1. stream server logs to browser console
 //     2. click on elements to jump to their definitions in your code editor
 //
 if (process.env.NODE_ENV === "development") {
@@ -65,7 +66,7 @@ if (process.env.NODE_ENV === "development") {
       // Disable with reloader.disableServerLogs()
       reloader.enableServerLogs();
 
-      // Open configured PLUG_EDITOR at file:line of the clicked element's HEEx component
+      // Open configured PLUG_EDITOR at file:line of clicked element's HEEx component
       //
       //   * click with "c" key pressed to open at caller location
       //   * click with "d" key pressed to open at function component definition location

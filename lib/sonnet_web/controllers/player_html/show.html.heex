@@ -1,0 +1,141 @@
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <div id="player-root" class="flex flex-col" data-book={Jason.encode!(@book_data)}>
+    <div id="player-ui" class="hidden flex flex-col gap-8 py-4">
+      <div class="w-full flex justify-center items-start px-2">
+        <div
+          id="book-cover-container"
+          class="w-full max-w-[320px] aspect-square bg-neutral rounded-2xl overflow-hidden shadow-2xl ring-1 ring-base-content/10 hidden transform transition-transform hover:scale-[1.02] relative"
+        >
+          <img id="book-cover" class="w-full h-full object-cover" alt="" />
+          <div
+            id="cached-indicator"
+            class="absolute top-3 right-3 flex items-center justify-center w-8 h-8 bg-base-100/80 backdrop-blur rounded-full shadow-sm opacity-0 transition-opacity duration-500"
+            title="Cached Offline"
+          >
+            <.icon name="hero-arrow-down-tray" class="size-4 text-primary" />
+          </div>
+        </div>
+      </div>
+
+      <div class="max-w-2xl mx-auto w-full space-y-8 text-center px-4">
+        <div id="book-completed-badge" class="hidden alert alert-success py-2 w-fit mx-auto">
+          <.icon name="hero-check-circle" class="size-4" />
+          <span class="font-bold text-sm">Completed</span>
+        </div>
+
+        <div class="card bg-base-100/50 backdrop-blur-sm border border-base-content/5 shadow-xl">
+          <div class="card-body p-6 space-y-6">
+            <div id="time-controls" class="space-y-4">
+              <div class="relative pt-2">
+                <input
+                  type="range"
+                  id="seek-bar"
+                  step="0.01"
+                  class="range range-primary range-xs w-full relative z-10"
+                />
+              </div>
+              <div class="flex justify-between text-xs font-mono opacity-60 tabular-nums">
+                <span id="current-time">0:00</span>
+                <span id="total-time">0:00</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-center gap-8">
+              <button
+                id="rewind-btn"
+                type="button"
+                class="btn btn-ghost btn-circle"
+                title="Rewind 11s"
+              >
+                <div class="flex flex-col items-center">
+                  <.icon name="hero-backward" class="size-7" />
+                  <span class="text-[9px] font-bold opacity-70 mt-0.5">11</span>
+                </div>
+              </button>
+
+              <button
+                id="play-pause-btn"
+                type="button"
+                class="btn btn-circle btn-primary btn-lg shadow-lg scale-110"
+              >
+                <.icon id="play-icon" name="hero-play" class="size-8" />
+                <.icon id="pause-icon" name="hero-pause" class="size-8 hidden" />
+              </button>
+
+              <button
+                id="forward-btn"
+                type="button"
+                class="btn btn-ghost btn-circle"
+                title="Forward 10s"
+              >
+                <div class="flex flex-col items-center">
+                  <.icon name="hero-forward" class="size-7" />
+                  <span class="text-[9px] font-bold opacity-70 mt-0.5">10</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-2 text-left pb-12 font-sans">
+          <div class="collapse collapse-arrow bg-base-100/50 backdrop-blur-sm border border-base-content/5 shadow-md">
+            <input type="checkbox" id="sleep-toggle" class="accordion-toggle" />
+            <div class="collapse-title text-base font-bold flex items-center gap-3 pr-12 text-primary">
+              <.icon name="hero-clock" class="size-5 shrink-0" />
+              <span id="sleep-timer-text" class="leading-tight">Sleep Timer</span>
+            </div>
+            <div class="collapse-content">
+              <div class="grid grid-cols-3 gap-2 pt-2 pb-4">
+                <%= for m <- [15, 30, 45, 60] do %>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-ghost border border-base-content/10 sleep-option font-semibold"
+                    data-minutes={m}
+                  >
+                    {m}m
+                  </button>
+                <% end %>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-ghost border border-base-content/10 sleep-option font-semibold"
+                  data-minutes="end-of-chapter"
+                >
+                  Chapter
+                </button>
+                <button
+                  type="button"
+                  id="cancel-sleep-timer"
+                  class="btn btn-sm btn-error hidden font-bold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="collapse collapse-arrow bg-base-100/50 backdrop-blur-sm border border-base-content/5 shadow-md">
+            <input type="checkbox" id="chapters-toggle" class="accordion-toggle" />
+            <div class="collapse-title text-base font-bold flex items-center gap-3 pr-12 text-primary">
+              <.icon name="hero-list-bullet" class="size-5 shrink-0" />
+              <span id="current-chapter-title" class="leading-tight">Chapters</span>
+            </div>
+            <div class="collapse-content overflow-hidden p-0">
+              <ul id="chapter-list" class="menu menu-vertical p-0 rounded-none"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="loading" class="min-h-[50vh] flex items-center justify-center">
+      <span class="loading loading-spinner loading-lg text-primary"></span>
+    </div>
+
+    <div id="error" class="hidden min-h-[50vh] flex items-center justify-center p-4">
+      <div class="alert alert-error max-w-md shadow-lg">
+        <.icon name="hero-x-circle" class="size-6 shadow-sm" />
+        <span id="error-message">An error occurred</span>
+      </div>
+    </div>
+  </div>
+</Layouts.app>
