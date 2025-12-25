@@ -181,4 +181,19 @@ defmodule Sonnet.Library do
     {:ok, url} = ExAws.S3.presigned_url(config, :get, bucket, s3_key, expires_in: 3600)
     url
   end
+
+  def update_book(id, attrs) do
+    id
+    |> get_book!()
+    |> Book.changeset(attrs)
+    |> Repo.update()
+    |> case do
+      {:ok, book} ->
+        broadcast_books_updated()
+        {:ok, book}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
 end

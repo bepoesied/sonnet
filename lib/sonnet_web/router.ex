@@ -59,6 +59,7 @@ defmodule SonnetWeb.Router do
       live "/users/settings", UserLive.Settings, :edit
       live "/ingest", BookLive.Ingest, :ingest
       live "/library", LibraryLive, :index
+      live "/library/books/:id/edit", LibraryLive, :edit
     end
   end
 

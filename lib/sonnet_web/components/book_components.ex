@@ -39,7 +39,14 @@ defmodule SonnetWeb.BookComponents do
           </.link>
         </div>
 
-        <div class="absolute top-2 right-2 z-10">
+        <div class="absolute top-2 right-2 z-10 flex gap-2">
+          <.link
+            patch={~p"/library/books/#{@book.id}/edit"}
+            class="text-white/70 hover:text-white opacity-0 transition-opacity [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-[:focus-visible]:opacity-100 focus:outline-none"
+            title="Edit Book"
+          >
+            <.icon name="hero-pencil" class="w-8 h-8" />
+          </.link>
           <button
             :if={!@book.is_completed}
             type="button"
