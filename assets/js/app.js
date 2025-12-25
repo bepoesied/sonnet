@@ -100,6 +100,12 @@ if ("serviceWorker" in navigator) {
     .register("/service-worker.js")
     .then((registration) => {
       console.log("Service Worker registered with scope:", registration.scope);
+
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event.data.type === "SW_LOG") {
+          console.log(event.data.message, event.data.data || "");
+        }
+      });
     })
     .catch((err) => {
       console.log("Service Worker registration failed:", err);
