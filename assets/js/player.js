@@ -73,8 +73,6 @@ class AudioPlayer {
       "loading",
       "error",
       "error-message",
-      "book-cover-container",
-      "book-cover",
       "current-time",
       "total-time",
       "seek-bar",
@@ -186,16 +184,8 @@ class AudioPlayer {
   }
 
   renderUI() {
-    this.renderCover();
     this.renderChapterList();
     this.updateMediaMetadata();
-  }
-
-  renderCover() {
-    if (this.book.cover_url && this.el["book-cover"]) {
-      this.el["book-cover"].src = this.book.cover_url;
-      this.el["book-cover-container"]?.classList.remove("hidden");
-    }
   }
 
   renderChapterList() {
