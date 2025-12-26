@@ -94,4 +94,24 @@ self.addEventListener("message", (event) => {
   if (event.data.type === "CACHE_BOOK_FILES") {
     cacheBookFiles(event.data.urls);
   }
+
+  if (event.data.type === "CLEAR_CACHE") {
+    caches
+      .keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            log("[SW] Deleting cache", cacheName);
+            return caches.delete(cacheName);
+          }),
+        );
+      })
+      .then(() => {
+        self.clients.matchAll().then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({ type: "CACHE_CLEARED" });
+          });
+        });
+      });
+  }
 });

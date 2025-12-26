@@ -77,6 +77,15 @@ defmodule SonnetWeb.Layouts do
               class="menu menu-sm dropdown-content bg-base-100 rounded-box z-[1] mt-3 w-52 p-2 shadow-xl border border-base-content/10"
             >
               <li>
+                <button
+                  id="clear-cache"
+                  onclick="clearServiceWorkerCache(); document.activeElement.blur()"
+                >
+                  <.icon name="hero-trash" class="size-4" /> Clear Cache
+                </button>
+              </li>
+              <div class="divider my-0"></div>
+              <li>
                 <.link href={~p"/users/log-out"} method="delete" class="text-error">
                   <.icon name="hero-arrow-right-on-rectangle" class="size-4" /> Logout
                 </.link>

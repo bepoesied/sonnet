@@ -145,6 +145,9 @@ class AudioPlayer {
         if (e.data.type === "FILE_CACHED") {
           this.checkCache();
         }
+        if (e.data.type === "CACHE_CLEARED") {
+          this.updateCachedIndicator(false);
+        }
       });
     }
   }

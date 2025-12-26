@@ -159,6 +159,15 @@ export const AudioPlayer = {
   },
 };
 
+window.clearServiceWorkerCache = () => {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.active.postMessage({ type: "CLEAR_CACHE" });
+      console.log("Service worker cache cleared");
+    });
+  }
+};
+
 export default {
   AudioPlayer,
 };
