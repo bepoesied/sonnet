@@ -7,13 +7,13 @@ defmodule Sonnet.Workers.Ingester do
   def perform(%Oban.Job{args: args}) do
     s3_key = args["s3_key"]
     original_filename = args["original_filename"]
+    book_metadata = args["book_metadata"] || %{}
 
-    case do_ingest(s3_key, original_filename) do
+    case do_ingest(s3_key, original_filename, book_metadata) do
       :ok ->
         :ok
 
       {:error, :not_found} ->
-        # S3 consistency issue, retry after some time
         {:error, :not_found}
 
       {:error, {:transient, reason}} ->
@@ -26,13 +26,19 @@ defmodule Sonnet.Workers.Ingester do
     end
   end
 
-  defp do_ingest(s3_key, original_filename) do
+  defp do_ingest(s3_key, original_filename, book_metadata) do
     with {:ok, path} <- download_from_s3(s3_key),
          {:ok, probe} <- probe_file(path) do
       cover_s3_key = extract_and_upload_cover(path, probe)
       media_asset = Sonnet.Library.create_media_asset!(s3_key)
 
-      case Sonnet.Library.ingest_probe!(probe, media_asset.id, original_filename, cover_s3_key) do
+      case Sonnet.Library.ingest_probe!(
+             probe,
+             media_asset.id,
+             original_filename,
+             cover_s3_key,
+             book_metadata
+           ) do
         {:ok, _} ->
           Sonnet.Library.broadcast_books_updated()
           :ok

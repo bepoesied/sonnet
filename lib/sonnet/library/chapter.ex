@@ -20,27 +20,26 @@ defmodule Sonnet.Library.Chapter do
     |> cast(attrs, [:title, :start_ms, :end_ms, :position, :book_id, :media_asset_id])
     |> validate_required([:title, :start_ms, :end_ms, :position, :book_id, :media_asset_id])
     |> validate_number(:start_ms, greater_than_or_equal_to: 0)
-    |> validate_number(:end_ms, greater_than: 0)
-    |> validate_greater_than(:end_ms, :start_ms)
+    |> validate_number(:end_ms, greater_than_or_equal_to: 0)
+    |> validate_chapter_duration()
   end
 
-  defp validate_greater_than(changeset, field, other_field) do
-    value = get_field(changeset, field)
-    other_value = get_field(changeset, other_field)
+  defp validate_chapter_duration(changeset) do
+    start_ms = get_field(changeset, :start_ms)
+    end_ms = get_field(changeset, :end_ms)
 
     cond do
-      is_nil(value) or is_nil(other_value) ->
+      is_nil(start_ms) or is_nil(end_ms) ->
         changeset
 
-      value > other_value ->
+      start_ms == 0 and end_ms == 0 ->
+        changeset
+
+      end_ms > start_ms ->
         changeset
 
       true ->
-        add_error(
-          changeset,
-          field,
-          "#{field} must be greater than #{other_field}"
-        )
+        add_error(changeset, :end_ms, "end_ms must be greater than start_ms unless both are 0")
     end
   end
 end

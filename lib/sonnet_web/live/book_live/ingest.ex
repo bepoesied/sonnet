@@ -16,23 +16,59 @@ defmodule SonnetWeb.BookLive.Ingest do
           </.link>
           <h1 class="text-4xl font-bold tracking-tight">Upload Book</h1>
         </div>
-        <form id="upload-form" phx-change="validate" phx-submit="save" class="flex flex-col gap-2">
-          <label for={@uploads.book.ref} phx-drop-target={@uploads.book.ref}>
-            <.live_file_input upload={@uploads.book} class="file-input" />
-          </label>
-          <.button type="submit" disabled={!at_least_onefile_selected?(@uploads.book)}>
-            Upload
-          </.button>
-        </form>
-        <div
-          :for={entry <- @uploads.book.entries}
-          :if={entry.progress > 0}
-          class="flex items-center gap-2"
-        >
-          <progress class="progress grow" value={entry.progress} max="100">
-            {entry.progress}%
-          </progress>
+
+        <div class="collapse collapse-arrow bg-base-200">
+          <input type="checkbox" checked />
+          <div class="collapse-title text-xl font-medium">
+            Single File Upload (.m4b, .m4a)
+          </div>
+          <div class="collapse-content">
+            <.form
+              for={@form}
+              id="upload-form"
+              phx-change="validate"
+              phx-submit="save"
+              class="flex flex-col gap-4"
+            >
+              <.input field={@form[:title]} type="text" label="Title (optional)" />
+              <.input field={@form[:author]} type="text" label="Author (optional)" />
+              <.input field={@form[:narrator]} type="text" label="Narrator (optional)" />
+              <.input
+                field={@form[:description]}
+                type="textarea"
+                label="Description (optional)"
+                rows="3"
+              />
+
+              <label for={@uploads.book.ref} phx-drop-target={@uploads.book.ref}>
+                <.live_file_input upload={@uploads.book} class="file-input" />
+              </label>
+
+              <div
+                :for={entry <- @uploads.book.entries}
+                :if={entry.progress > 0}
+                class="flex items-center gap-2"
+              >
+                <progress class="progress grow" value={entry.progress} max="100">
+                  {entry.progress}%
+                </progress>
+              </div>
+
+              <.button type="submit" disabled={!at_least_onefile_selected?(@uploads.book)}>
+                Upload
+              </.button>
+            </.form>
+          </div>
         </div>
+
+        <div class="divider">OR</div>
+
+        <.link
+          navigate={~p"/multi-ingest"}
+          class="btn btn-outline btn-lg"
+        >
+          <.icon name="hero-arrow-up-tray" class="size-6" /> Upload Multi-File Book (.mp3 files)
+        </.link>
 
         <div class="divider">OR</div>
 
@@ -76,17 +112,20 @@ defmodule SonnetWeb.BookLive.Ingest do
         max_file_size: 5_000_000_000,
         external: &presign_upload/2
       )
+      |> assign(
+        :form,
+        to_form(%{"title" => nil, "author" => nil, "narrator" => nil, "description" => nil},
+          as: :book
+        )
+      )
       |> assign(:bulk_form, to_form(%{"keys" => ""}, as: :bulk))
 
     {:ok, socket}
   end
 
   @impl true
-  def handle_event("validate", _params, socket) do
-    socket =
-      socket
-
-    {:noreply, socket}
+  def handle_event("validate", %{"book" => book_params}, socket) do
+    {:noreply, assign(socket, :form, to_form(book_params, as: :book))}
   end
 
   @impl true
@@ -112,8 +151,8 @@ defmodule SonnetWeb.BookLive.Ingest do
   end
 
   @impl true
-  def handle_event("save", _params, socket) do
-    [uploaded_file | _] =
+  def handle_event("save", %{"book" => book_params}, socket) do
+    [uploaded_file] =
       consume_uploaded_entries(socket, :book, fn meta, entry ->
         key = meta.key
         client_name = entry.client_name
@@ -121,7 +160,11 @@ defmodule SonnetWeb.BookLive.Ingest do
       end)
 
     {:ok, _} =
-      %{s3_key: uploaded_file.key, original_filename: uploaded_file.client_name}
+      %{
+        s3_key: uploaded_file.key,
+        original_filename: uploaded_file.client_name,
+        book_metadata: book_params
+      }
       |> Sonnet.Workers.Ingester.new()
       |> Oban.insert()
 

@@ -49,37 +49,6 @@ const stripUrl = (url) => {
   return cacheUrl.toString();
 };
 
-const cacheUrl = async (url) => {
-  const strippedUrl = stripUrl(url);
-  const cache = await caches.open(CACHE_NAME);
-  const request = new Request(strippedUrl, { mode: "cors" });
-  await cache.add(request);
-};
-
-const sendResponse = (port, success, error) => {
-  if (success) {
-    port.postMessage({ success: true });
-  } else {
-    port.postMessage({ success: false, error });
-  }
-};
-
-const handleCacheAudio = async (event) => {
-  const { url } = event.data;
-  const strippedUrl = stripUrl(url);
-
-  log("[SW] Caching:", strippedUrl);
-
-  try {
-    await cacheUrl(strippedUrl);
-    log("[SW] Cached:", strippedUrl);
-    sendResponse(event.ports[0], true);
-  } catch (error) {
-    log("[SW] Cache failed:", strippedUrl, error.message);
-    sendResponse(event.ports[0], false, error.message);
-  }
-};
-
 log("[SW] Service worker loaded");
 registerRoute(isPresignedUrl, createCacheStrategy());
 
@@ -91,10 +60,4 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   log("[SW] Activate");
   event.waitUntil(self.clients.claim());
-});
-
-self.addEventListener("message", (event) => {
-  if (event.data.type === "CACHE_AUDIO") {
-    handleCacheAudio(event);
-  }
 });

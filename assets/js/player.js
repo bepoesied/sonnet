@@ -148,7 +148,6 @@ class AudioPlayer {
       this.updateCompletionUI();
       this.showLayer("player-ui");
       this.sync();
-      this.preloadAudio();
     } catch (e) {
       this.showErr("Failed to initialize player");
     }
@@ -678,65 +677,6 @@ class AudioPlayer {
   showErr(m) {
     this.showLayer("error");
     if (this.el["error-message"]) this.el["error-message"].textContent = m;
-  }
-
-  async preloadAudio() {
-    if (!this.isCacheAvailable()) return;
-
-    const urls = this.getUniqueAudioUrls();
-    console.log(`[Player] Preloading ${urls.length} audio files`);
-
-    for (const url of urls) {
-      const key = this.stripUrl(url);
-      if (await this.isUrlCached(key)) continue;
-      this.requestCache(key);
-    }
-  }
-
-  isCacheAvailable() {
-    if (!("serviceWorker" in navigator)) {
-      console.log("[Player] ServiceWorker not available");
-      return false;
-    }
-    if (!("caches" in window)) {
-      console.log("[Player] Cache API not available");
-      return false;
-    }
-    return true;
-  }
-
-  getUniqueAudioUrls() {
-    return [...new Set(this.book.chapters.map((c) => c.audio_url))];
-  }
-
-  async isUrlCached(key) {
-    try {
-      const cache = await caches.open("media-cache-v1");
-      const match = await cache.match(key);
-      if (match) {
-        console.log("[Player] Already cached:", key);
-        return true;
-      }
-    } catch (e) {}
-    return false;
-  }
-
-  requestCache(key) {
-    console.log("[Player] Requesting cache:", key);
-    const messageChannel = new MessageChannel();
-    messageChannel.port1.onmessage = (e) => {
-      if (e.data.success) {
-        console.log("[Player] Cached:", key);
-        this.checkCache();
-      } else {
-        console.error("[Player] Cache failed:", key, e.data.error);
-      }
-    };
-
-    navigator.serviceWorker.controller?.postMessage(
-      { type: "CACHE_AUDIO", url: key },
-      [messageChannel.port2],
-    );
   }
 
   close() {

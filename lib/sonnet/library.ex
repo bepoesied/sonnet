@@ -36,12 +36,17 @@ defmodule Sonnet.Library do
         %{"format" => format} = probe,
         media_asset_id,
         original_filename,
-        cover_s3_key \\ nil
+        cover_s3_key \\ nil,
+        book_metadata \\ %{}
       ) do
-    title = Map.get(format["tags"] || %{}, "title") || Path.rootname(original_filename)
-    author = Map.get(format["tags"] || %{}, "author")
-    narrator = Map.get(format["tags"] || %{}, "artist")
-    description = Map.get(format["tags"] || %{}, "description")
+    title =
+      book_metadata["title"] ||
+        Map.get(format["tags"] || %{}, "title") ||
+        Path.rootname(original_filename)
+
+    author = book_metadata["author"] || Map.get(format["tags"] || %{}, "author")
+    narrator = book_metadata["narrator"] || Map.get(format["tags"] || %{}, "artist")
+    description = book_metadata["description"] || Map.get(format["tags"] || %{}, "description")
 
     chapters = Map.get(probe, "chapters", [])
 
@@ -79,6 +84,54 @@ defmodule Sonnet.Library do
             end_ms: ceil(to_float(chapter["end_time"]) * 1000),
             book_id: book.id,
             media_asset_id: media_asset_id
+          })
+
+        Multi.insert(multi, name, chapter_changeset)
+      end)
+    end)
+    |> Repo.transaction()
+  end
+
+  def ingest_multi_file!(
+        s3_keys,
+        original_filenames,
+        media_assets,
+        durations,
+        book_metadata
+      ) do
+    title = book_metadata["title"] || "Untitled Book"
+    author = book_metadata["author"]
+    narrator = book_metadata["narrator"]
+    description = book_metadata["description"]
+
+    Multi.new()
+    |> Multi.insert(
+      :book,
+      Book.changeset(%Book{}, %{
+        title: title,
+        author: author,
+        narrator: narrator,
+        description: description
+      })
+    )
+    |> Multi.merge(fn %{book: book} ->
+      files_data =
+        Enum.zip([s3_keys, original_filenames, media_assets, durations])
+        |> Enum.with_index()
+
+      Enum.reduce(files_data, Multi.new(), fn {{_s3_key, _original_filename, media_asset,
+                                                duration_ms}, index},
+                                              multi ->
+        name = "insert_chapter_#{index}"
+
+        chapter_changeset =
+          Chapter.changeset(%Chapter{}, %{
+            position: index,
+            title: "Chapter #{index + 1}",
+            start_ms: 0,
+            end_ms: duration_ms,
+            book_id: book.id,
+            media_asset_id: media_asset.id
           })
 
         Multi.insert(multi, name, chapter_changeset)
