@@ -23,6 +23,12 @@ defmodule SonnetWeb.LibraryLive do
     book = Library.get_book!(id)
 
     socket
+    |> allow_upload(:cover,
+      accept: ~w(.jpg .jpeg .png .webp .gif .bmp),
+      max_entries: 1,
+      max_file_size: 10_000_000,
+      auto_upload: true
+    )
     |> assign(:page_title, "Edit Book")
     |> assign(:editing_book, book)
     |> assign(:edit_form, to_form(Sonnet.Library.Book.changeset(book, %{})))
@@ -78,6 +84,28 @@ defmodule SonnetWeb.LibraryLive do
             <.input field={@edit_form[:author]} type="text" label="Author" />
             <.input field={@edit_form[:narrator]} type="text" label="Narrator" />
             <.input field={@edit_form[:description]} type="textarea" label="Description" rows="3" />
+
+            <div>
+              <label class="label">
+                <span class="label-text">Cover Image</span>
+              </label>
+              <label for={@uploads.cover.ref} phx-drop-target={@uploads.cover.ref}>
+                <.live_file_input
+                  upload={@uploads.cover}
+                  class="file-input file-input-bordered w-full"
+                />
+              </label>
+
+              <div
+                :for={entry <- @uploads.cover.entries}
+                :if={entry.progress > 0}
+                class="mt-2"
+              >
+                <progress class="progress progress-primary w-full" value={entry.progress} max="100">
+                  {entry.progress}%
+                </progress>
+              </div>
+            </div>
           </div>
 
           <div class="modal-action">
@@ -133,6 +161,23 @@ defmodule SonnetWeb.LibraryLive do
   def handle_event("save_edit", %{"book" => book_params}, socket) do
     book = socket.assigns.editing_book
 
+    cover_s3_key =
+      consume_uploaded_entries(socket, :cover, fn %{path: path}, entry ->
+        cover_s3_key = process_cover_upload(path, entry)
+        {:ok, cover_s3_key}
+      end)
+      |> case do
+        [key] -> key
+        [] -> nil
+      end
+
+    book_params =
+      if cover_s3_key do
+        Map.put(book_params, "cover_s3_key", cover_s3_key)
+      else
+        book_params
+      end
+
     case Library.update_book(book.id, book_params) do
       {:ok, _updated_book} ->
         socket =
@@ -151,5 +196,69 @@ defmodule SonnetWeb.LibraryLive do
   def handle_info(:books_updated, socket) do
     user_id = socket.assigns.current_scope.user.id
     {:noreply, stream(socket, :books, Library.list_books(user_id), reset: true)}
+  end
+
+  defp process_cover_upload(path, entry) do
+    temp_path = Briefly.create!(type: :path, extname: Path.extname(entry.client_name))
+
+    File.cp!(path, temp_path)
+
+    jpg_path = convert_to_jpg(temp_path)
+
+    hash = calculate_cover_hash(jpg_path)
+    s3_key = upload_cover_to_s3(jpg_path, hash)
+
+    File.rm!(temp_path)
+    File.rm!(jpg_path)
+
+    s3_key
+  end
+
+  defp convert_to_jpg(input_path) do
+    output_path = Briefly.create!(type: :path, extname: ".jpg")
+
+    case System.cmd("ffmpeg", [
+           "-i",
+           input_path,
+           "-vf",
+           "scale='min(800,iw)':-2",
+           "-q:v",
+           "85",
+           "-f",
+           "image2",
+           output_path,
+           "-y"
+         ]) do
+      {_, 0} ->
+        if File.exists?(output_path) and File.stat!(output_path).size > 0 do
+          output_path
+        else
+          raise "Failed to convert cover to JPG"
+        end
+
+      {error, _} ->
+        raise "FFmpeg error: #{error}"
+    end
+  end
+
+  defp calculate_cover_hash(path) do
+    File.stream!(path)
+    |> Enum.reduce(:crypto.hash_init(:sha256), fn chunk, acc ->
+      :crypto.hash_update(acc, chunk)
+    end)
+    |> :crypto.hash_final()
+    |> Base.encode16(case: :lower)
+  end
+
+  defp upload_cover_to_s3(path, hash) do
+    key = Path.join(["covers", "#{hash}.jpg"])
+    bucket = Application.get_env(:sonnet, :ingest_bucket)
+
+    path
+    |> ExAws.S3.Upload.stream_file()
+    |> ExAws.S3.upload(bucket, key)
+    |> ExAws.request!()
+
+    key
   end
 end
