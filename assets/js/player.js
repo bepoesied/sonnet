@@ -1,3 +1,5 @@
+import { CACHE_NAME, isCached } from "./cache-utils.js";
+
 /**
  * @typedef {Object} Chapter
  * @property {number} id
@@ -137,11 +139,20 @@ class AudioPlayer {
       "beforeunload",
       () => this.state.isPlaying && this.save(true),
     );
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", (e) => {
+        if (e.data.type === "FILE_CACHED") {
+          this.checkCache();
+        }
+      });
+    }
   }
 
   async loadInitialState() {
     try {
       this.renderUI();
+      this.cacheAllBookFiles();
       const { chapterId, offsetMs } = this.getStartingPosition();
       if (chapterId) await this.goTo(chapterId, offsetMs);
 
@@ -588,20 +599,22 @@ class AudioPlayer {
   async checkCache() {
     if (!("caches" in window) || !this.state.chapter) return;
     try {
-      const cacheKey = this.stripUrl(this.state.chapter.audio_url);
-      const match = await (await caches.open("media-cache-v1")).match(cacheKey);
-      this.updateCachedIndicator(!!match);
-      if (!match && this.state.isPlaying) {
-        setTimeout(() => this.checkCache(), 5000);
-      }
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await isCached(cache, this.state.chapter.audio_url);
+      this.updateCachedIndicator(cached);
     } catch (e) {}
   }
 
-  stripUrl(url) {
-    const cacheUrl = new URL(url);
-    cacheUrl.search = "";
-    cacheUrl.hash = "";
-    return cacheUrl.toString();
+  cacheAllBookFiles() {
+    if (!("serviceWorker" in navigator)) return;
+
+    navigator.serviceWorker.ready.then((registration) => {
+      const urls = this.book.chapters.map((c) => c.audio_url);
+      registration.active.postMessage({
+        type: "CACHE_BOOK_FILES",
+        urls: urls,
+      });
+    });
   }
 
   updateCachedIndicator(isCached) {

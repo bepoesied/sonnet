@@ -1,10 +1,9 @@
-import { registerRoute } from "workbox-routing";
-import { CacheFirst } from "workbox-strategies";
-import { RangeRequestsPlugin } from "workbox-range-requests";
 import { CacheableResponsePlugin } from "workbox-cacheable-response";
 import { ExpirationPlugin } from "workbox-expiration";
-
-const CACHE_NAME = "media-cache-v1";
+import { RangeRequestsPlugin } from "workbox-range-requests";
+import { registerRoute } from "workbox-routing";
+import { CacheFirst } from "workbox-strategies";
+import { CACHE_NAME, isCached } from "./cache-utils.js";
 
 const log = (message, data) => {
   self.clients.matchAll().then((clients) => {
@@ -22,12 +21,11 @@ const isPresignedUrl = ({ url }) => {
   );
 };
 
-const createCacheStrategy = () => {
+function createCacheStrategy() {
   return new CacheFirst({
     cacheName: CACHE_NAME,
     matchOptions: {
       ignoreSearch: true,
-      ignoreVary: true,
     },
     plugins: [
       new CacheableResponsePlugin({
@@ -40,14 +38,44 @@ const createCacheStrategy = () => {
       }),
     ],
   });
-};
+}
 
-const stripUrl = (url) => {
-  const cacheUrl = new URL(url);
-  cacheUrl.search = "";
-  cacheUrl.hash = "";
-  return cacheUrl.toString();
-};
+async function cacheBookFiles(urls) {
+  const cache = await caches.open(CACHE_NAME);
+
+  for (const url of urls) {
+    await cacheFileIfNotCached(cache, url);
+  }
+}
+
+async function cacheFileIfNotCached(cache, url) {
+  try {
+    const cached = await isCached(cache, url);
+    if (!cached) {
+      await cacheFile(cache, url);
+    }
+  } catch (error) {
+    logCacheError(url, error);
+  }
+}
+
+async function cacheFile(cache, url) {
+  log("[SW] Caching file", url);
+  await cache.add(url);
+  notifyClientsFileCached(url);
+}
+
+function notifyClientsFileCached(url) {
+  self.clients.matchAll().then((clients) => {
+    clients.forEach((client) => {
+      client.postMessage({ type: "FILE_CACHED", url });
+    });
+  });
+}
+
+function logCacheError(url, error) {
+  log("[SW] Failed to cache file", { url, error: error.message });
+}
 
 log("[SW] Service worker loaded");
 registerRoute(isPresignedUrl, createCacheStrategy());
@@ -60,4 +88,10 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   log("[SW] Activate");
   event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data.type === "CACHE_BOOK_FILES") {
+    cacheBookFiles(event.data.urls);
+  }
 });
