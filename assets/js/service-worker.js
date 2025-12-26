@@ -33,8 +33,8 @@ function createCacheStrategy() {
       }),
       new RangeRequestsPlugin(),
       new ExpirationPlugin({
-        maxEntries: 50,
         maxAgeSeconds: 30 * 24 * 60 * 60,
+        purgeOnQuotaError: true,
       }),
     ],
   });
