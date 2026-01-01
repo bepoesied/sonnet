@@ -45,6 +45,7 @@ class AudioPlayer {
     this.audio.crossOrigin = "anonymous";
     this.audio.preload = "auto";
     this.csrf = document.querySelector("meta[name='csrf-token']")?.content;
+    this.progressKey = `progress_${this.book.id}`;
 
     this.state = {
       chapter: null,
@@ -166,7 +167,7 @@ class AudioPlayer {
   }
 
   getStartingPosition() {
-    const local = JSON.parse(localStorage.getItem(`progress_${this.book.id}`));
+    const local = this.getLocalStorageProgress();
     const remote = this.book.progress;
     let start = remote;
 
@@ -191,10 +192,9 @@ class AudioPlayer {
   renderChapterList() {
     if (!this.el["chapter-list"]) return;
     this.el["chapter-list"].textContent = "";
-    this.book.chapters.forEach((c) => {
-      const item = this.createChapterItem(c);
-      this.el["chapter-list"].append(item);
-    });
+    this.book.chapters.forEach((c) =>
+      this.el["chapter-list"].append(this.createChapterItem(c)),
+    );
   }
 
   createChapterItem(c) {
@@ -375,6 +375,33 @@ class AudioPlayer {
     );
   }
 
+  getLocalStorageProgress() {
+    try {
+      return JSON.parse(localStorage.getItem(this.progressKey));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  updateLocalStorageProgress(cid, off, ts) {
+    localStorage.setItem(
+      this.progressKey,
+      JSON.stringify({
+        cid,
+        off,
+        ts: ts || new Date().toISOString(),
+      }),
+    );
+  }
+
+  getCurrentPositionMs() {
+    return Math.floor(this.audio.currentTime * 1000);
+  }
+
+  findChapterIndex(id) {
+    return this.book.chapters.findIndex((c) => c.id === id);
+  }
+
   onEnded() {
     const nextChapter = this.getNextChapter();
     if (nextChapter) {
@@ -385,9 +412,7 @@ class AudioPlayer {
   }
 
   getNextChapter() {
-    const idx = this.book.chapters.findIndex(
-      (c) => c.id === this.state.chapter.id,
-    );
+    const idx = this.findChapterIndex(this.state.chapter.id);
     return idx !== -1 && idx < this.book.chapters.length - 1
       ? this.book.chapters[idx + 1]
       : null;
@@ -399,25 +424,16 @@ class AudioPlayer {
     this.pause();
     this.api("complete");
     this.updateCompletionUI();
-    this.saveProgressToLocalStorage();
-  }
-
-  saveProgressToLocalStorage() {
-    const ts = new Date().toISOString();
-    localStorage.setItem(
-      `progress_${this.book.id}`,
-      JSON.stringify({
-        cid: this.state.chapter.id,
-        off: Math.floor(this.audio.duration * 1000),
-        ts,
-      }),
+    this.updateLocalStorageProgress(
+      this.state.chapter.id,
+      Math.floor(this.audio.duration * 1000),
     );
   }
 
   onSeekInput(e) {
     if (!this.audio.duration) return;
     this.state.isDragging = true;
-    const time = (parseFloat(e.target.value) / 100) * this.audio.duration;
+    const time = this.seekBarValueToTime(parseFloat(e.target.value));
     if (this.el["current-time"])
       this.el["current-time"].textContent = this.formatSeconds(time);
   }
@@ -425,7 +441,7 @@ class AudioPlayer {
   onSeekChange(e) {
     if (!this.audio.duration) return;
     this.state.isDragging = false;
-    const time = (parseFloat(e.target.value) / 100) * this.audio.duration;
+    const time = this.seekBarValueToTime(parseFloat(e.target.value));
 
     if (time >= this.audio.duration - 0.5) {
       this.audio.currentTime = this.audio.duration;
@@ -436,6 +452,10 @@ class AudioPlayer {
     }
     this.state.lastPosition = this.audio.currentTime;
     this.state.lastManualSeek = Date.now();
+  }
+
+  seekBarValueToTime(value) {
+    return (value / 100) * this.audio.duration;
   }
 
   onChapterClick(e) {
@@ -511,15 +531,8 @@ class AudioPlayer {
 
   async save(force = false) {
     if (!this.state.chapter) return;
-    const off = Math.floor(this.audio.currentTime * 1000);
-    localStorage.setItem(
-      `progress_${this.book.id}`,
-      JSON.stringify({
-        cid: this.state.chapter.id,
-        off,
-        ts: new Date().toISOString(),
-      }),
-    );
+    const off = this.getCurrentPositionMs();
+    this.updateLocalStorageProgress(this.state.chapter.id, off);
 
     if (!force && Date.now() - this.state.lastSync < 30000) return;
     this.state.lastSync = Date.now();
@@ -540,9 +553,7 @@ class AudioPlayer {
       if (!res) return;
 
       const remote = await res.json();
-      const local = JSON.parse(
-        localStorage.getItem(`progress_${this.book.id}`),
-      );
+      const local = this.getLocalStorageProgress();
       const seekLock = Date.now() - this.state.lastManualSeek < 10000;
 
       if (this.shouldSyncLocalToServer(local, remote)) {
@@ -573,7 +584,7 @@ class AudioPlayer {
   syncPositionFromServer(remote) {
     if (
       remote.chapter_id !== this.state.chapter.id ||
-      Math.abs(remote.offset_ms - this.audio.currentTime * 1000) > 5000
+      Math.abs(remote.offset_ms - this.getCurrentPositionMs()) > 5000
     ) {
       this.goTo(remote.chapter_id, remote.offset_ms);
     }
@@ -630,8 +641,10 @@ class AudioPlayer {
   }
 
   updateCachedIndicator(isCached) {
-    this.el["cached-indicator"]?.classList.toggle("opacity-100", isCached);
-    this.el["cached-indicator"]?.classList.toggle("opacity-0", !isCached);
+    if (this.el["cached-indicator"]) {
+      this.el["cached-indicator"].classList.toggle("opacity-100", isCached);
+      this.el["cached-indicator"].classList.toggle("opacity-0", !isCached);
+    }
   }
 
   updateMediaMetadata() {
@@ -647,10 +660,8 @@ class AudioPlayer {
   }
 
   jump(n) {
-    const idx = this.book.chapters.findIndex(
-      (c) => c.id === this.state.chapter?.id,
-    );
-    if (this.book.chapters[idx + n])
+    const idx = this.findChapterIndex(this.state.chapter?.id);
+    if (idx !== -1 && this.book.chapters[idx + n])
       this.goTo(this.book.chapters[idx + n].id, 0, true);
   }
 
