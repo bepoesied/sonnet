@@ -20,10 +20,11 @@ defmodule SonnetWeb.UserAuth do
   # How old the session token should be before a new one is issued. When a request is made
   # with a session token older than this value, then a new session token will be created
   # and the session and remember-me cookies (if set) will be updated with the new token.
+  # This only applies to cookie-based authentication, not API Bearer tokens.
   # Lowering this value will result in more tokens being created by active users. Increasing
   # it will result in less time before a session token expires for a user to get issued a new
   # token. This can be set to a value greater than `@max_cookie_age_in_days` to disable
-  # the reissuing of tokens completely.
+  # reissuing of tokens completely.
   @session_reissue_age_in_days 7
 
   @doc """
@@ -62,39 +63,51 @@ defmodule SonnetWeb.UserAuth do
   @doc """
   Authenticates the user by looking into the session and remember me token.
 
-  Will reissue the session token if it is older than the configured age.
+  Will reissue the session token if it is older than the configured age (cookie-based only).
   """
   def fetch_current_scope_for_user(conn, _opts) do
-    with {token, conn} <- ensure_user_token(conn),
+    with {token, conn, from_cookie?} <- ensure_user_token(conn),
          {user, token_inserted_at} <- Accounts.get_user_by_session_token(token) do
       conn
       |> assign(:current_scope, Scope.for_user(user))
-      |> maybe_reissue_user_session_token(user, token_inserted_at)
+      |> maybe_reissue_user_session_token(user, token_inserted_at, from_cookie?)
     else
       nil -> assign(conn, :current_scope, Scope.for_user(nil))
     end
   end
 
   defp ensure_user_token(conn) do
-    if token = get_session(conn, :user_token) do
-      {token, conn}
+    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
+         {:ok, decoded_token} <- Base.url_decode64(token, padding: false) do
+      {decoded_token, conn, false}
     else
-      conn = fetch_cookies(conn, signed: [@remember_me_cookie])
+      _ ->
+        if token = get_session(conn, :user_token) do
+          {token, conn, true}
+        else
+          conn = fetch_cookies(conn, signed: [@remember_me_cookie])
 
-      if token = conn.cookies[@remember_me_cookie] do
-        {token, conn |> put_token_in_session(token) |> put_session(:user_remember_me, true)}
-      else
-        nil
-      end
+          if token = conn.cookies[@remember_me_cookie] do
+            {token, conn |> put_token_in_session(token) |> put_session(:user_remember_me, true),
+             true}
+          else
+            nil
+          end
+        end
     end
   end
 
   # Reissue the session token if it is older than the configured reissue age.
-  defp maybe_reissue_user_session_token(conn, user, token_inserted_at) do
-    token_age = DateTime.diff(DateTime.utc_now(:second), token_inserted_at, :day)
+  # Only applies to cookie-based authentication (from_cookie? == true).
+  defp maybe_reissue_user_session_token(conn, user, token_inserted_at, from_cookie?) do
+    if from_cookie? do
+      token_age = DateTime.diff(DateTime.utc_now(:second), token_inserted_at, :day)
 
-    if token_age >= @session_reissue_age_in_days do
-      create_or_extend_session(conn, user, %{})
+      if token_age >= @session_reissue_age_in_days do
+        create_or_extend_session(conn, user, %{})
+      else
+        conn
+      end
     else
       conn
     end
@@ -287,4 +300,18 @@ defmodule SonnetWeb.UserAuth do
   end
 
   defp maybe_store_return_to(conn), do: conn
+
+  @doc """
+  Plug to protect from forgery only when using cookie-based authentication.
+  This allows API clients using Authorization headers to bypass CSRF protection.
+  """
+  def protect_from_forgery_when_using_cookie(conn, _opts) do
+    case get_req_header(conn, "authorization") do
+      ["Bearer " <> _token] ->
+        conn
+
+      _ ->
+        protect_from_forgery(conn, [])
+    end
+  end
 end
