@@ -1,8 +1,5 @@
 import Config
 
-# Only in tests, remove the complexity from the password hashing algorithm
-config :bcrypt_elixir, :log_rounds, 1
-
 config :sonnet, Oban, testing: :manual
 
 # Configure your database
@@ -11,8 +8,8 @@ config :sonnet, Oban, testing: :manual
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
 config :sonnet, Sonnet.Repo,
-  username: "postgres",
-  password: "postgres",
+  username: "sonnet",
+  password: "sonnet",
   hostname: "localhost",
   database: "sonnet_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,

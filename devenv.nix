@@ -41,13 +41,9 @@ in
   services.postgres = {
     enable = true;
     listen_addresses = "localhost";
-    initialDatabases = [
-      {
-        name = "sonnet_dev";
-        user = "sonnet";
-        pass = "sonnet";
-      }
-    ];
+    initialScript = ''
+      CREATE ROLE sonnet WITH SUPERUSER LOGIN PASSWORD 'sonnet';
+    '';
   };
 
   services.minio = {
