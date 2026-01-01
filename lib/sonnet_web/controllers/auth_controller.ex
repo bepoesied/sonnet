@@ -12,7 +12,7 @@ defmodule SonnetWeb.AuthController do
            avatar_url: auth.info.image
          }) do
       {:ok, user} ->
-        UserAuth.log_in_user(conn, user)
+        UserAuth.log_in_user(conn, user, %{"remember_me" => "true"})
 
       {:error, _changeset} ->
         conn |> put_flash(:error, "Authentication failed") |> redirect(to: ~p"/")

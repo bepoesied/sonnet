@@ -532,9 +532,13 @@ class AudioPlayer {
 
   async sync() {
     try {
-      const res = await fetch(`/api/books/${this.book.id}/progress`, {
-        headers: { "X-CSRF-Token": this.csrf },
-      });
+      const res = await this.fetchWithAuth(
+        `/api/books/${this.book.id}/progress`,
+        { headers: { "X-CSRF-Token": this.csrf } },
+      );
+
+      if (!res) return;
+
       const remote = await res.json();
       const local = JSON.parse(
         localStorage.getItem(`progress_${this.book.id}`),
@@ -576,17 +580,32 @@ class AudioPlayer {
   }
 
   async api(path, body = {}, alive = false) {
+    await this.fetchWithAuth(`/api/books/${this.book.id}/${path}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": this.csrf,
+      },
+      body: JSON.stringify(body),
+      keepalive: alive,
+    });
+  }
+
+  async fetchWithAuth(url, options) {
     try {
-      await fetch(`/api/books/${this.book.id}/${path}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": this.csrf,
-        },
-        body: JSON.stringify(body),
-        keepalive: alive,
-      });
-    } catch (e) {}
+      const res = await fetch(url, options);
+
+      if (res.status === 401 || res.status === 403) {
+        window.location.href = `/auth/oidc?${new URLSearchParams({
+          user_return_to: window.location.pathname + window.location.search,
+        })}`;
+        return null;
+      }
+
+      return res;
+    } catch (e) {
+      return null;
+    }
   }
 
   async checkCache() {
