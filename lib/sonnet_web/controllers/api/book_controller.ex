@@ -3,6 +3,30 @@ defmodule SonnetWeb.API.BookController do
 
   alias Sonnet.Library
 
+  def index(conn, _params) do
+    user = conn.assigns.current_scope.user
+    books = Library.list_books(user.id)
+
+    books_json =
+      Enum.map(books, fn book ->
+        %{
+          id: book.id,
+          title: book.title,
+          author: book.author,
+          narrator: book.narrator,
+          description: book.description,
+          cover_url:
+            if(book.cover_s3_key,
+              do: Library.presigned_url(book.cover_s3_key),
+              else: nil
+            ),
+          is_completed: book.is_completed
+        }
+      end)
+
+    json(conn, books_json)
+  end
+
   def show(conn, %{"id" => id}) do
     user = conn.assigns.current_scope.user
     book = Library.get_book_with_status!(String.to_integer(id), user.id)

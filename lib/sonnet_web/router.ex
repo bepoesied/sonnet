@@ -32,6 +32,7 @@ defmodule SonnetWeb.Router do
   scope "/api", SonnetWeb.API do
     pipe_through [:api, :require_authenticated_user]
 
+    get "/books", BookController, :index
     get "/books/:id", BookController, :show
     get "/books/:id/progress", BookController, :progress
     put "/books/:id/progress", BookController, :update_progress
