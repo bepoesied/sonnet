@@ -63,7 +63,7 @@ defmodule SonnetWeb.Layouts do
               <div class="avatar">
                 <div class="w-8 rounded-full bg-base-300">
                   <%= if @current_scope.user.avatar_url do %>
-                    <img alt="Avatar" src={@current_scope.user.avatar_url} />
+                    <img alt="Avatar" src={@current_scope.user.avatar_url} crossorigin="anonymous" />
                   <% else %>
                     <div class="flex items-center justify-center h-full">
                       <.icon name="hero-user" class="size-5" />

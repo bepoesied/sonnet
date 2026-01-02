@@ -23,6 +23,7 @@ defmodule SonnetWeb.BookComponents do
           src={Library.presigned_url(@book.cover_s3_key)}
           alt={@book.title}
           class="w-full h-full object-cover"
+          crossorigin="anonymous"
         />
         <div
           :if={!@book.cover_s3_key}

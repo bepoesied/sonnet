@@ -8,6 +8,7 @@
             src={@book_data.cover_url}
             alt={@book_data.title}
             class="w-full h-full object-cover"
+            crossorigin="anonymous"
           />
           <div
             :if={!@book_data.cover_url}
