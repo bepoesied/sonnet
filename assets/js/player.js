@@ -43,7 +43,7 @@ class AudioPlayer {
     this.book = JSON.parse(this.root.dataset.book);
     this.audio = new Audio();
     this.audio.crossOrigin = "anonymous";
-    this.audio.preload = "auto";
+    this.audio.preload = "metadata";
     this.csrf = document.querySelector("meta[name='csrf-token']")?.content;
     this.progressKey = `progress_${this.book.id}`;
 
@@ -301,6 +301,20 @@ class AudioPlayer {
       0,
       Math.min(this.audio.currentTime + s, this.audio.duration),
     );
+    this.recordSeek();
+  }
+
+  seekTo(seconds) {
+    if (!this.audio.duration) return;
+    this.audio.currentTime = Math.max(
+      0,
+      Math.min(seconds, this.audio.duration),
+    );
+    this.recordSeek();
+    this.save();
+  }
+
+  recordSeek() {
     this.state.lastPosition = this.audio.currentTime;
     this.state.lastManualSeek = Date.now();
   }
@@ -440,7 +454,6 @@ class AudioPlayer {
 
   onSeekChange(e) {
     if (!this.audio.duration) return;
-    this.state.isDragging = false;
     const time = this.seekBarValueToTime(parseFloat(e.target.value));
 
     if (time >= this.audio.duration - 0.5) {
@@ -448,10 +461,9 @@ class AudioPlayer {
       if (this.el["seek-bar"]) this.el["seek-bar"].value = "100";
       this.finish();
     } else {
-      this.audio.currentTime = time;
+      this.seekTo(time);
     }
-    this.state.lastPosition = this.audio.currentTime;
-    this.state.lastManualSeek = Date.now();
+    this.state.isDragging = false;
   }
 
   seekBarValueToTime(value) {
@@ -657,6 +669,36 @@ class AudioPlayer {
         ? [{ src: this.book.cover_url, sizes: "512x512", type: "image/jpeg" }]
         : [],
     });
+
+    try {
+      navigator.mediaSession.setActionHandler("play", () => this.play());
+    } catch (e) {}
+    try {
+      navigator.mediaSession.setActionHandler("pause", () => this.pause());
+    } catch (e) {}
+    try {
+      navigator.mediaSession.setActionHandler("seekto", (details) => {
+        if (details.seekTime) this.seekTo(details.seekTime);
+      });
+    } catch (e) {}
+    try {
+      navigator.mediaSession.setActionHandler("seekbackward", () =>
+        this.seek(-10),
+      );
+    } catch (e) {}
+    try {
+      navigator.mediaSession.setActionHandler("seekforward", () =>
+        this.seek(10),
+      );
+    } catch (e) {}
+    try {
+      navigator.mediaSession.setActionHandler("previoustrack", () =>
+        this.jump(-1),
+      );
+    } catch (e) {}
+    try {
+      navigator.mediaSession.setActionHandler("nexttrack", () => this.jump(1));
+    } catch (e) {}
   }
 
   jump(n) {
