@@ -27,6 +27,9 @@ function createCacheStrategy() {
     matchOptions: {
       ignoreSearch: true,
     },
+    fetchOptions: {
+      mode: "cors",
+    },
     plugins: [
       new CacheableResponsePlugin({
         statuses: [200],
@@ -61,8 +64,13 @@ async function cacheFileIfNotCached(cache, url) {
 
 async function cacheFile(cache, url) {
   log("[SW] Caching file", url);
-  await cache.add(url);
-  notifyClientsFileCached(url);
+  const response = await fetch(url, { mode: "cors" });
+  if (response.ok) {
+    await cache.put(url, response);
+    notifyClientsFileCached(url);
+  } else {
+    throw new Error(`Failed to fetch: ${response.status}`);
+  }
 }
 
 function notifyClientsFileCached(url) {
