@@ -1,4 +1,5 @@
 import { CACHE_NAME, isCached } from "./cache-utils.js";
+import { AudioEngine } from "./audio-engine.js";
 
 /**
  * @typedef {Object} Chapter
@@ -41,9 +42,7 @@ class AudioPlayer {
     if (!this.root) return;
 
     this.book = JSON.parse(this.root.dataset.book);
-    this.audio = new Audio();
-    this.audio.crossOrigin = "anonymous";
-    this.audio.preload = "metadata";
+    this.engine = new AudioEngine();
     this.csrf = document.querySelector("meta[name='csrf-token']")?.content;
     this.progressKey = `progress_${this.book.id}`;
 
@@ -59,6 +58,15 @@ class AudioPlayer {
     };
 
     this.el = {};
+
+    this.engine.onTimeUpdate = (cur, dur) => this.onTimeUpdate();
+    this.engine.onTrackEnded = () => this.onEnded();
+    this.engine.onTrackChanged = () => this.handleSeamlessChapterChange();
+    this.engine.onError = () => this.showErr("Playback failed");
+    this.engine.onMetadataLoaded = () => this.onMetadataLoaded();
+    this.engine.onPlay = () => this.updatePlayState(true);
+    this.engine.onPause = () => this.updatePlayState(false);
+
     this.init();
   }
 
@@ -122,17 +130,6 @@ class AudioPlayer {
       const btn = e.target.closest(".sleep-option");
       if (btn) this.setSleep(btn.dataset.minutes);
     });
-
-    this.audio.addEventListener("timeupdate", () => this.onTimeUpdate());
-    this.audio.addEventListener("loadedmetadata", () =>
-      this.onMetadataLoaded(),
-    );
-    this.audio.addEventListener("play", () => this.updatePlayState(true));
-    this.audio.addEventListener("pause", () => this.updatePlayState(false));
-    this.audio.addEventListener("ended", () => this.onEnded());
-    this.audio.addEventListener("error", () =>
-      this.showErr("Audio failed to load"),
-    );
 
     window.addEventListener(
       "beforeunload",
@@ -229,6 +226,12 @@ class AudioPlayer {
     this.setPosition(ms || chapter.start_ms);
     this.updateChapter(chapter);
     this.checkCache();
+
+    const nextChapter = this.getNextChapter();
+    if (nextChapter) {
+      this.engine.preloadNext(nextChapter.audio_url);
+    }
+
     if (autoPlay || this.state.isPlaying) await this.play();
   }
 
@@ -242,17 +245,57 @@ class AudioPlayer {
     }
 
     this.state.isPending = true;
-    this.audio.src = chapter.audio_url;
-    await new Promise((r) => {
-      this.audio.addEventListener("loadedmetadata", r, { once: true });
-      this.audio.load();
-    });
-    this.state.isPending = false;
+    try {
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Timeout loading audio"));
+        }, 10000);
+
+        const metadataHandler = () => {
+          clearTimeout(timeout);
+          this.engine.active.removeEventListener(
+            "loadedmetadata",
+            metadataHandler,
+          );
+          this.engine.active.removeEventListener("canplay", metadataHandler);
+          this.engine.active.removeEventListener("error", errorHandler);
+          resolve();
+        };
+
+        const errorHandler = () => {
+          clearTimeout(timeout);
+          this.engine.active.removeEventListener(
+            "loadedmetadata",
+            metadataHandler,
+          );
+          this.engine.active.removeEventListener("canplay", metadataHandler);
+          this.engine.active.removeEventListener("error", errorHandler);
+          reject();
+        };
+
+        this.engine.active.addEventListener("loadedmetadata", metadataHandler, {
+          once: true,
+        });
+        this.engine.active.addEventListener("canplay", metadataHandler, {
+          once: true,
+        });
+        this.engine.active.addEventListener("error", errorHandler, {
+          once: true,
+        });
+
+        this.engine.load(chapter.audio_url);
+      });
+    } catch (e) {
+      this.showErr("Failed to load audio");
+      throw e;
+    } finally {
+      this.state.isPending = false;
+    }
   }
 
   setPosition(ms) {
-    this.audio.currentTime = ms / 1000;
-    this.state.lastPosition = this.audio.currentTime;
+    this.engine.currentTime = ms / 1000;
+    this.state.lastPosition = this.engine.currentTime;
   }
 
   updateChapter(chapter) {
@@ -275,8 +318,9 @@ class AudioPlayer {
 
     try {
       this.state.isPending = true;
-      if (!this.audio.src) this.audio.src = this.state.chapter.audio_url;
-      await this.audio.play();
+      if (!this.engine.active.src)
+        this.engine.active.src = this.state.chapter.audio_url;
+      await this.engine.play();
       this.state.isPlaying = true;
     } catch (e) {
       if (e.name !== "AbortError") this.showErr("Playback failed");
@@ -286,41 +330,41 @@ class AudioPlayer {
   }
 
   pause() {
-    this.audio.pause();
+    this.engine.pause();
     this.state.isPlaying = false;
     this.save();
   }
 
   toggle() {
-    this.audio.paused ? this.play() : this.pause();
+    this.engine.paused ? this.play() : this.pause();
   }
 
   seek(s) {
-    if (!this.audio.duration) return;
-    this.audio.currentTime = Math.max(
+    if (!this.engine.duration) return;
+    this.engine.currentTime = Math.max(
       0,
-      Math.min(this.audio.currentTime + s, this.audio.duration),
+      Math.min(this.engine.currentTime + s, this.engine.duration),
     );
     this.recordSeek();
   }
 
   seekTo(seconds) {
-    if (!this.audio.duration) return;
-    this.audio.currentTime = Math.max(
+    if (!this.engine.duration) return;
+    this.engine.currentTime = Math.max(
       0,
-      Math.min(seconds, this.audio.duration),
+      Math.min(seconds, this.engine.duration),
     );
     this.recordSeek();
     this.save();
   }
 
   recordSeek() {
-    this.state.lastPosition = this.audio.currentTime;
+    this.state.lastPosition = this.engine.currentTime;
     this.state.lastManualSeek = Date.now();
   }
 
   onTimeUpdate() {
-    const { duration, currentTime } = this.audio;
+    const { duration, currentTime } = this.engine;
     if (!duration || !this.state.chapter) return;
 
     if (!this.state.isDragging) {
@@ -357,7 +401,7 @@ class AudioPlayer {
     if (this.state.sleep.mode === "end-of-chapter") {
       return Math.max(
         0,
-        (this.state.chapter.end_ms - this.audio.currentTime * 1000) / 1000,
+        (this.state.chapter.end_ms - this.engine.currentTime * 1000) / 1000,
       );
     }
     return Math.max(0, this.state.sleep.remaining - delta);
@@ -368,7 +412,7 @@ class AudioPlayer {
       this.pause();
       this.clearSleep();
       if (this.state.sleep.mode === "end-of-chapter")
-        this.audio.currentTime = (this.state.chapter.end_ms - 1) / 1000;
+        this.engine.currentTime = (this.state.chapter.end_ms - 1) / 1000;
     }
   }
 
@@ -409,7 +453,7 @@ class AudioPlayer {
   }
 
   getCurrentPositionMs() {
-    return Math.floor(this.audio.currentTime * 1000);
+    return Math.floor(this.engine.currentTime * 1000);
   }
 
   findChapterIndex(id) {
@@ -440,12 +484,26 @@ class AudioPlayer {
     this.updateCompletionUI();
     this.updateLocalStorageProgress(
       this.state.chapter.id,
-      Math.floor(this.audio.duration * 1000),
+      Math.floor(this.engine.duration * 1000),
     );
   }
 
+  handleSeamlessChapterChange() {
+    const next = this.getNextChapter();
+    if (next) {
+      this.updateChapter(next);
+
+      const future = this.getNextChapter();
+      if (future) {
+        this.engine.preloadNext(future.audio_url);
+      }
+
+      this.save(true);
+    }
+  }
+
   onSeekInput(e) {
-    if (!this.audio.duration) return;
+    if (!this.engine.duration) return;
     this.state.isDragging = true;
     const time = this.seekBarValueToTime(parseFloat(e.target.value));
     if (this.el["current-time"])
@@ -453,11 +511,11 @@ class AudioPlayer {
   }
 
   onSeekChange(e) {
-    if (!this.audio.duration) return;
+    if (!this.engine.duration) return;
     const time = this.seekBarValueToTime(parseFloat(e.target.value));
 
-    if (time >= this.audio.duration - 0.5) {
-      this.audio.currentTime = this.audio.duration;
+    if (time >= this.engine.duration - 0.5) {
+      this.engine.currentTime = this.engine.duration;
       if (this.el["seek-bar"]) this.el["seek-bar"].value = "100";
       const nextChapter = this.getNextChapter();
       if (nextChapter) {
@@ -472,7 +530,7 @@ class AudioPlayer {
   }
 
   seekBarValueToTime(value) {
-    return (value / 100) * this.audio.duration;
+    return (value / 100) * this.engine.duration;
   }
 
   onChapterClick(e) {
@@ -495,7 +553,9 @@ class AudioPlayer {
 
   calculateInitialSleepRemaining(m) {
     if (m === "end-of-chapter") {
-      return (this.state.chapter.end_ms - this.audio.currentTime * 1000) / 1000;
+      return (
+        (this.state.chapter.end_ms - this.engine.currentTime * 1000) / 1000
+      );
     }
     return parseInt(m) * 60;
   }
@@ -722,12 +782,12 @@ class AudioPlayer {
   }
 
   updateMediaPosition() {
-    if (!("mediaSession" in navigator) || !this.audio.duration) return;
+    if (!("mediaSession" in navigator) || !this.engine.duration) return;
     try {
       navigator.mediaSession.setPositionState({
-        duration: this.audio.duration,
-        playbackRate: this.audio.playbackRate,
-        position: this.audio.currentTime,
+        duration: this.engine.duration,
+        playbackRate: this.engine.active.playbackRate,
+        position: this.engine.currentTime,
       });
     } catch (e) {}
   }
@@ -735,7 +795,7 @@ class AudioPlayer {
   onMetadataLoaded() {
     if (this.el["total-time"])
       this.el["total-time"].textContent = this.formatSeconds(
-        this.audio.duration,
+        this.engine.duration,
       );
     this.checkCache();
   }
@@ -763,7 +823,7 @@ class AudioPlayer {
   }
 
   close() {
-    this.pause();
+    this.engine.pause();
     this.save(true);
     window.location.href = "/library";
   }
