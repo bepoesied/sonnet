@@ -158,7 +158,8 @@ defmodule Sonnet.Library do
         from b in Book,
           left_join: lp in ListenProgress,
           on: lp.book_id == b.id and lp.user_id == ^user_id,
-          select_merge: %{is_completed: fragment("coalesce(?, false)", lp.is_completed)}
+          select_merge: %{is_completed: fragment("coalesce(?, false)", lp.is_completed)},
+          order_by: [desc_nulls_last: lp.updated_at]
       else
         Book
       end
