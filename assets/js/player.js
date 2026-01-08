@@ -459,7 +459,12 @@ class AudioPlayer {
     if (time >= this.audio.duration - 0.5) {
       this.audio.currentTime = this.audio.duration;
       if (this.el["seek-bar"]) this.el["seek-bar"].value = "100";
-      this.finish();
+      const nextChapter = this.getNextChapter();
+      if (nextChapter) {
+        this.goTo(nextChapter.id, 0, this.state.isPlaying);
+      } else {
+        this.finish();
+      }
     } else {
       this.seekTo(time);
     }
