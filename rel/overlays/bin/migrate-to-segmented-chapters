@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+cd -P -- "$(dirname -- "$0")"
+
+if [ "${1:-}" = "dry-run" ]; then
+  exec ./sonnet eval Sonnet.Release.migrate_to_segmented_chapters_dry_run
+else
+  exec ./sonnet eval Sonnet.Release.migrate_to_segmented_chapters
+fi
