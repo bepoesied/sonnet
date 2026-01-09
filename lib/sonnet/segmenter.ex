@@ -2,8 +2,8 @@ defmodule Sonnet.Segmenter do
   @moduledoc """
   Module for segmenting audiobook files into individual chapter files.
 
-  This module handles the conversion of single m4b files (or other formats) 
-  into segmented files per chapter using codec copy. It creates individual 
+  This module handles the conversion of single m4b files (or other formats)
+  into segmented files per chapter using codec copy. It creates individual
   media assets for each chapter and updates chapter records accordingly.
   """
 
@@ -177,7 +177,7 @@ defmodule Sonnet.Segmenter do
       Enum.map(segments, fn %{path: path, title: title} ->
         hash = calculate_file_hash(path)
         extension = Path.extname(path)
-        s3_key = Path.join([prefix(), "books", "#{hash}#{extension}"])
+        s3_key = Path.join([prefix(), "#{hash}#{extension}"])
 
         case upload_segment(path, s3_key) do
           :ok ->
