@@ -20,11 +20,13 @@ defmodule Sonnet.Release do
 
   def migrate_to_segmented_chapters do
     load_app()
+    start_app()
     migrate_books(false)
   end
 
   def migrate_to_segmented_chapters_dry_run do
     load_app()
+    start_app()
     migrate_books(true)
   end
 
@@ -104,5 +106,9 @@ defmodule Sonnet.Release do
     # Many platforms require SSL when connecting to the database
     Application.ensure_all_started(:ssl)
     Application.ensure_loaded(@app)
+  end
+
+  defp start_app do
+    Application.ensure_all_started(@app)
   end
 end
