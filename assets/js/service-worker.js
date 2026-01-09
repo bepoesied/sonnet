@@ -3,7 +3,12 @@ import { ExpirationPlugin } from "workbox-expiration";
 import { RangeRequestsPlugin } from "workbox-range-requests";
 import { registerRoute } from "workbox-routing";
 import { CacheFirst } from "workbox-strategies";
-import { CACHE_NAME, isCached } from "./cache-utils.js";
+import {
+  CACHE_NAME,
+  isCached,
+  getUrlPath,
+  isFromCurrentBook,
+} from "./cache-utils.js";
 
 const log = (message, data) => {
   self.clients.matchAll().then((clients) => {
@@ -51,6 +56,14 @@ async function cacheBookFiles(urls) {
   }
 }
 
+async function cacheUrls(urls) {
+  const cache = await caches.open(CACHE_NAME);
+
+  for (const url of urls) {
+    await cacheFileIfNotCached(cache, url);
+  }
+}
+
 async function cacheFileIfNotCached(cache, url) {
   try {
     const cached = await isCached(cache, url);
@@ -64,12 +77,22 @@ async function cacheFileIfNotCached(cache, url) {
 
 async function cacheFile(cache, url) {
   log("[SW] Caching file", url);
-  const response = await fetch(url, { mode: "cors" });
-  if (response.ok) {
+
+  try {
+    const response = await fetch(url, {
+      mode: "cors",
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch: ${response.status}`);
+    }
+
     await cache.put(url, response);
     notifyClientsFileCached(url);
-  } else {
-    throw new Error(`Failed to fetch: ${response.status}`);
+  } catch (error) {
+    logCacheError(url, error);
+    throw error;
   }
 }
 
@@ -83,6 +106,52 @@ function notifyClientsFileCached(url) {
 
 function logCacheError(url, error) {
   log("[SW] Failed to cache file", { url, error: error.message });
+}
+
+async function clearPlayedChapters(playedUrls) {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const keys = await cache.keys();
+    const playedPaths = playedUrls.map(getUrlPath);
+
+    for (const request of keys) {
+      const requestPath = getUrlPath(request.url);
+      if (playedPaths.includes(requestPath)) {
+        log("[SW] Deleting played chapter", request.url);
+        await cache.delete(request);
+      }
+    }
+
+    self.clients.matchAll().then((clients) => {
+      clients.forEach((client) => {
+        client.postMessage({ type: "PLAYED_CHAPTERS_CLEARED" });
+      });
+    });
+  } catch (error) {
+    log("[SW] Error clearing played chapters", error.message);
+  }
+}
+
+async function clearOtherBooks(currentBookUrls) {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const keys = await cache.keys();
+
+    for (const request of keys) {
+      if (!isFromCurrentBook(request.url, currentBookUrls)) {
+        log("[SW] Deleting other book", request.url);
+        await cache.delete(request);
+      }
+    }
+
+    self.clients.matchAll().then((clients) => {
+      clients.forEach((client) => {
+        client.postMessage({ type: "OTHER_BOOKS_CLEARED" });
+      });
+    });
+  } catch (error) {
+    log("[SW] Error clearing other books", error.message);
+  }
 }
 
 log("[SW] Service worker loaded");
@@ -101,6 +170,22 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data.type === "CACHE_BOOK_FILES") {
     cacheBookFiles(event.data.urls);
+  }
+
+  if (event.data.type === "CACHE_URLS") {
+    cacheUrls(event.data.urls);
+  }
+
+  if (event.data.type === "CACHE_ENTIRE_BOOK") {
+    cacheUrls(event.data.urls);
+  }
+
+  if (event.data.type === "CLEAR_PLAYED_CHAPTERS") {
+    clearPlayedChapters(event.data.urls);
+  }
+
+  if (event.data.type === "CLEAR_OTHER_BOOKS") {
+    clearOtherBooks(event.data.currentBookUrls);
   }
 
   if (event.data.type === "CLEAR_CACHE") {

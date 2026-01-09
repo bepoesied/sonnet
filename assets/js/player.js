@@ -76,6 +76,37 @@ class AudioPlayer {
     this.loadInitialState();
   }
 
+  createIcon(iconName, className = "size-4") {
+    const iconPaths = {
+      "hero-arrow-down-tray": [
+        "M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3",
+      ],
+    };
+
+    const paths = iconPaths[iconName];
+    if (!paths) return null;
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("stroke-width", "1.5");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("class", className);
+
+    paths.forEach((d) => {
+      const path = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path",
+      );
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-linejoin", "round");
+      path.setAttribute("d", d);
+      svg.appendChild(path);
+    });
+
+    return svg;
+  }
+
   bindElements() {
     const ids = [
       "player-ui",
@@ -99,6 +130,10 @@ class AudioPlayer {
       "time-controls",
       "sleep-toggle",
       "chapters-toggle",
+      "chapters-collapse",
+      "download-book-btn",
+      "clear-played-btn",
+      "clear-other-books-btn",
     ];
     ids.forEach((id) => {
       this.el[id] = document.getElementById(id);
@@ -126,6 +161,16 @@ class AudioPlayer {
       toggle?.addEventListener("change", (e) => this.handleAccordionSync(e));
     });
 
+    this.el["download-book-btn"]?.addEventListener("click", () =>
+      this.downloadEntireBook(),
+    );
+    this.el["clear-played-btn"]?.addEventListener("click", () =>
+      this.clearPlayedChapters(),
+    );
+    this.el["clear-other-books-btn"]?.addEventListener("click", () =>
+      this.clearOtherBooks(),
+    );
+
     document.addEventListener("click", (e) => {
       const btn = e.target.closest(".sleep-option");
       if (btn) this.setSleep(btn.dataset.minutes);
@@ -140,9 +185,17 @@ class AudioPlayer {
       navigator.serviceWorker.addEventListener("message", (e) => {
         if (e.data.type === "FILE_CACHED") {
           this.checkCache();
+          this.updateChapterCacheStatus(e.data.url);
         }
         if (e.data.type === "CACHE_CLEARED") {
           this.updateCachedIndicator(false);
+          this.refreshAllChapterCacheStatus();
+        }
+        if (e.data.type === "PLAYED_CHAPTERS_CLEARED") {
+          this.refreshAllChapterCacheStatus();
+        }
+        if (e.data.type === "OTHER_BOOKS_CLEARED") {
+          this.refreshAllChapterCacheStatus();
         }
       });
     }
@@ -151,7 +204,6 @@ class AudioPlayer {
   async loadInitialState() {
     try {
       this.renderUI();
-      this.cacheAllBookFiles();
       const { chapterId, offsetMs } = this.getStartingPosition();
       if (chapterId) await this.goTo(chapterId, offsetMs);
 
@@ -184,6 +236,7 @@ class AudioPlayer {
   renderUI() {
     this.renderChapterList();
     this.updateMediaMetadata();
+    this.refreshAllChapterCacheStatus();
   }
 
   renderChapterList() {
@@ -201,13 +254,25 @@ class AudioPlayer {
     const a = document.createElement("a");
     a.href = "#";
     a.dataset.chapterId = c.id.toString();
+    a.dataset.audioUrl = c.audio_url;
     a.className =
       "flex justify-between py-4 px-6 hover:bg-primary/5 active:bg-primary/10 transition-colors font-sans group";
 
     const title = document.createElement("span");
     title.className =
-      "text-sm group-hover:text-primary transition-colors pr-4 font-semibold flex-1";
+      "text-sm group-hover:text-primary transition-colors pr-4 font-semibold flex-1 flex items-center gap-2";
     title.textContent = c.title;
+
+    const cacheIcon = document.createElement("span");
+    cacheIcon.className = "chapter-cache-icon hidden shrink-0";
+    const iconSvg = this.createIcon(
+      "hero-arrow-down-tray",
+      "size-4 text-primary",
+    );
+    if (iconSvg) {
+      cacheIcon.appendChild(iconSvg);
+    }
+    title.append(cacheIcon);
 
     const dur = document.createElement("span");
     dur.className = "text-xs opacity-50 font-mono tabular-nums";
@@ -226,6 +291,8 @@ class AudioPlayer {
     this.setPosition(ms || 0);
     this.updateChapter(chapter);
     this.checkCache();
+
+    this.cacheCurrentAndNext();
 
     const nextChapter = this.getNextChapter();
     if (nextChapter) {
@@ -684,17 +751,113 @@ class AudioPlayer {
       const cache = await caches.open(CACHE_NAME);
       const cached = await isCached(cache, this.state.chapter.audio_url);
       this.updateCachedIndicator(cached);
+      this.updateChapterCacheStatus(this.state.chapter.audio_url);
     } catch (e) {}
   }
 
-  cacheAllBookFiles() {
+  async updateChapterCacheStatus(url) {
+    if (!this.el["chapter-list"]) return;
+
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await isCached(cache, url);
+
+      const chapterLinks = this.el["chapter-list"].querySelectorAll("a");
+      chapterLinks.forEach((link) => {
+        if (link.dataset.audioUrl === url) {
+          const icon = link.querySelector(".chapter-cache-icon");
+          if (icon) {
+            icon.classList.toggle("hidden", !cached);
+          }
+        }
+      });
+    } catch (e) {}
+  }
+
+  async refreshAllChapterCacheStatus() {
+    if (!this.el["chapter-list"]) return;
+
+    try {
+      const cache = await caches.open(CACHE_NAME);
+
+      const chapterLinks = this.el["chapter-list"].querySelectorAll("a");
+      for (const link of chapterLinks) {
+        const url = link.dataset.audioUrl;
+        if (url) {
+          const cached = await isCached(cache, url);
+          const icon = link.querySelector(".chapter-cache-icon");
+          if (icon) {
+            icon.classList.toggle("hidden", !cached);
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  cacheCurrentAndNext() {
+    if (!("serviceWorker" in navigator) || !this.state.chapter) return;
+
+    const currentIndex = this.findChapterIndex(this.state.chapter.id);
+    const urlsToCache = [];
+
+    for (let i = currentIndex; i < currentIndex + 4; i++) {
+      if (i >= 0 && i < this.book.chapters.length) {
+        urlsToCache.push(this.book.chapters[i].audio_url);
+      }
+    }
+
+    if (urlsToCache.length > 0) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.active.postMessage({
+          type: "CACHE_URLS",
+          urls: urlsToCache,
+        });
+      });
+    }
+  }
+
+  downloadEntireBook() {
     if (!("serviceWorker" in navigator)) return;
 
+    const urls = this.book.chapters.map((c) => c.audio_url);
     navigator.serviceWorker.ready.then((registration) => {
-      const urls = this.book.chapters.map((c) => c.audio_url);
       registration.active.postMessage({
-        type: "CACHE_BOOK_FILES",
+        type: "CACHE_ENTIRE_BOOK",
         urls: urls,
+      });
+    });
+  }
+
+  clearPlayedChapters() {
+    if (!("serviceWorker" in navigator) || !this.state.chapter) return;
+
+    const currentIndex = this.findChapterIndex(this.state.chapter.id);
+    const playedUrls = [];
+
+    for (let i = 0; i < currentIndex; i++) {
+      if (i >= 0 && i < this.book.chapters.length) {
+        playedUrls.push(this.book.chapters[i].audio_url);
+      }
+    }
+
+    if (playedUrls.length > 0) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.active.postMessage({
+          type: "CLEAR_PLAYED_CHAPTERS",
+          urls: playedUrls,
+        });
+      });
+    }
+  }
+
+  clearOtherBooks() {
+    if (!("serviceWorker" in navigator)) return;
+
+    const currentBookUrls = this.book.chapters.map((c) => c.audio_url);
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.active.postMessage({
+        type: "CLEAR_OTHER_BOOKS",
+        currentBookUrls: currentBookUrls,
       });
     });
   }

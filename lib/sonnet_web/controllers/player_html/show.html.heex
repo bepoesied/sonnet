@@ -83,6 +83,33 @@
                 </div>
               </button>
             </div>
+
+            <div class="flex flex-wrap gap-2 justify-center pt-2">
+              <button
+                id="download-book-btn"
+                type="button"
+                class="btn btn-sm btn-ghost border border-base-content/10"
+              >
+                <.icon name="hero-arrow-down-tray" class="size-4" />
+                <span>Download Book</span>
+              </button>
+              <button
+                id="clear-played-btn"
+                type="button"
+                class="btn btn-sm btn-ghost border border-base-content/10"
+              >
+                <.icon name="hero-trash" class="size-4" />
+                <span>Clear Played</span>
+              </button>
+              <button
+                id="clear-other-books-btn"
+                type="button"
+                class="btn btn-sm btn-ghost border border-base-content/10"
+              >
+                <.icon name="hero-archive-box-x-mark" class="size-4" />
+                <span>Clear Other Books</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -122,14 +149,17 @@
             </div>
           </div>
 
-          <div class="collapse collapse-arrow bg-base-100/50 backdrop-blur-sm border border-base-content/5 shadow-md">
+          <div
+            class="collapse collapse-arrow bg-base-100/50 backdrop-blur-sm border border-base-content/5 shadow-md"
+            id="chapters-collapse"
+          >
             <input type="checkbox" id="chapters-toggle" class="accordion-toggle" />
             <div class="collapse-title text-base font-bold flex items-center gap-3 pr-12 text-primary">
               <.icon name="hero-list-bullet" class="size-5 shrink-0" />
               <span id="current-chapter-title" class="leading-tight">Chapters</span>
             </div>
             <div class="collapse-content overflow-hidden p-0">
-              <ul id="chapter-list" class="menu menu-vertical p-0 rounded-none"></ul>
+              <ul id="chapter-list" class="menu menu-vertical p-0 rounded-none w-full"></ul>
             </div>
           </div>
         </div>
