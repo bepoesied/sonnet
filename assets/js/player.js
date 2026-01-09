@@ -223,7 +223,7 @@ class AudioPlayer {
     if (!chapter || this.state.isPending) return;
 
     await this.loadAudioIfNeeded(chapter);
-    this.setPosition(ms || chapter.start_ms);
+    this.setPosition(ms || 0);
     this.updateChapter(chapter);
     this.checkCache();
 
@@ -240,7 +240,7 @@ class AudioPlayer {
   }
 
   async loadAudioIfNeeded(chapter) {
-    if (this.state.chapter?.media_asset_id === chapter.media_asset_id) {
+    if (this.state.chapter?.id === chapter.id) {
       return;
     }
 
@@ -377,7 +377,6 @@ class AudioPlayer {
     this.state.lastPosition = currentTime;
 
     this.handleSleepTimer(delta);
-    this.handleChapterBoundary(currentTime * 1000);
     this.updateMediaPosition();
     this.save();
   }
@@ -414,23 +413,6 @@ class AudioPlayer {
       if (this.state.sleep.mode === "end-of-chapter")
         this.engine.currentTime = (this.state.chapter.end_ms - 1) / 1000;
     }
-  }
-
-  handleChapterBoundary(ms) {
-    const next = this.findChapterByTime(ms);
-    if (next && next.id !== this.state.chapter.id) {
-      this.updateChapter(next);
-      this.save(true);
-    }
-  }
-
-  findChapterByTime(ms) {
-    return this.book.chapters.find(
-      (c) =>
-        c.media_asset_id === this.state.chapter.media_asset_id &&
-        ms >= c.start_ms &&
-        ms < c.end_ms,
-    );
   }
 
   getLocalStorageProgress() {

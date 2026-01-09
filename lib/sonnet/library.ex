@@ -32,66 +32,6 @@ defmodule Sonnet.Library do
     |> Repo.delete_all()
   end
 
-  def ingest_probe!(
-        %{"format" => format} = probe,
-        media_asset_id,
-        original_filename,
-        cover_s3_key \\ nil,
-        book_metadata \\ %{}
-      ) do
-    title =
-      book_metadata["title"] ||
-        Map.get(format["tags"] || %{}, "title") ||
-        Path.rootname(original_filename)
-
-    author = book_metadata["author"] || Map.get(format["tags"] || %{}, "author")
-    narrator = book_metadata["narrator"] || Map.get(format["tags"] || %{}, "artist")
-    description = book_metadata["description"] || Map.get(format["tags"] || %{}, "description")
-
-    chapters = Map.get(probe, "chapters", [])
-
-    chapters =
-      if chapters == [] do
-        duration_ms = floor(to_float(format["duration"]) * 1000)
-
-        [%{"tags" => %{"title" => "Chapter 1"}, "start" => 0, "end" => duration_ms}]
-      else
-        chapters
-      end
-
-    Multi.new()
-    |> Multi.insert(
-      :book,
-      Book.changeset(%Book{}, %{
-        title: title,
-        author: author,
-        narrator: narrator,
-        description: description,
-        cover_s3_key: cover_s3_key
-      })
-    )
-    |> Multi.merge(fn %{book: book} ->
-      chapters
-      |> Enum.with_index()
-      |> Enum.reduce(Multi.new(), fn {chapter, index}, multi ->
-        name = "insert_chapter_#{index}"
-
-        chapter_changeset =
-          Chapter.changeset(%Chapter{}, %{
-            position: index,
-            title: Map.get(chapter["tags"] || %{}, "title") || "Chapter #{index + 1}",
-            start_ms: floor(to_float(chapter["start_time"]) * 1000),
-            end_ms: ceil(to_float(chapter["end_time"]) * 1000),
-            book_id: book.id,
-            media_asset_id: media_asset_id
-          })
-
-        Multi.insert(multi, name, chapter_changeset)
-      end)
-    end)
-    |> Repo.transaction()
-  end
-
   def ingest_multi_file!(
         s3_keys,
         original_filenames,
@@ -119,17 +59,26 @@ defmodule Sonnet.Library do
         Enum.zip([s3_keys, original_filenames, media_assets, durations])
         |> Enum.with_index()
 
-      Enum.reduce(files_data, Multi.new(), fn {{_s3_key, _original_filename, media_asset,
+      Enum.reduce(files_data, Multi.new(), fn {{_s3_key, original_filename, media_asset,
                                                 duration_ms}, index},
                                               multi ->
         name = "insert_chapter_#{index}"
 
+        cumulative_start =
+          files_data
+          |> Enum.take(index)
+          |> Enum.map(fn {{_, _, _, d}, _} -> d end)
+          |> Enum.sum()
+
+        cumulative_end = cumulative_start + duration_ms
+
         chapter_changeset =
           Chapter.changeset(%Chapter{}, %{
             position: index,
-            title: "Chapter #{index + 1}",
-            start_ms: 0,
-            end_ms: duration_ms,
+            title: Path.rootname(original_filename) || "Chapter #{index + 1}",
+            start_ms: cumulative_start,
+            end_ms: cumulative_end,
+            duration_ms: duration_ms,
             book_id: book.id,
             media_asset_id: media_asset.id
           })
@@ -140,17 +89,84 @@ defmodule Sonnet.Library do
     |> Repo.transaction()
   end
 
-  defp to_float(nil), do: 0.0
-  defp to_float(val) when is_number(val), do: val / 1
+  def ingest_segmented!(
+        segments_data,
+        book_metadata,
+        cover_s3_key \\ nil
+      ) do
+    title = book_metadata["title"] || "Untitled Book"
+    author = book_metadata["author"]
+    narrator = book_metadata["narrator"]
+    description = book_metadata["description"]
 
-  defp to_float(val) when is_binary(val) do
-    case Float.parse(val) do
-      {float, _} -> float
-      :error -> 0.0
-    end
+    Multi.new()
+    |> Multi.insert(
+      :book,
+      Book.changeset(%Book{}, %{
+        title: title,
+        author: author,
+        narrator: narrator,
+        description: description,
+        cover_s3_key: cover_s3_key
+      })
+    )
+    |> Multi.merge(fn %{book: book} ->
+      segments_data
+      |> Enum.with_index()
+      |> Enum.reduce(Multi.new(), fn {%{s3_key: s3_key, title: title, duration_ms: duration_ms},
+                                      index},
+                                     multi ->
+        media_asset =
+          Repo.insert!(%MediaAsset{s3_key: s3_key},
+            on_conflict: :nothing,
+            conflict_target: :s3_key,
+            returning: true
+          )
+
+        name = "insert_chapter_#{index}"
+
+        chapter_title = title || "Chapter #{index + 1}"
+
+        cumulative_start =
+          segments_data
+          |> Enum.take(index)
+          |> Enum.map(& &1.duration_ms)
+          |> Enum.sum()
+
+        cumulative_end = cumulative_start + duration_ms
+
+        chapter_changeset =
+          Chapter.changeset(%Chapter{}, %{
+            position: index,
+            title: chapter_title,
+            start_ms: cumulative_start,
+            end_ms: cumulative_end,
+            duration_ms: duration_ms,
+            book_id: book.id,
+            media_asset_id: media_asset.id
+          })
+
+        Multi.insert(multi, name, chapter_changeset)
+      end)
+    end)
+    |> Repo.transaction()
   end
 
-  defp to_float(_), do: 0.0
+  def find_books_needing_migration do
+    import Ecto.Query
+
+    from(c in Chapter,
+      group_by: c.book_id,
+      group_by: c.media_asset_id,
+      having: count(c.id) > 1,
+      select: %{book_id: c.book_id, media_asset_id: c.media_asset_id}
+    )
+    |> Repo.all()
+  end
+
+  def segment_book!(book_id, media_asset_id) do
+    Sonnet.Segmenter.segment_book(book_id, media_asset_id)
+  end
 
   def list_books(user_id \\ nil) do
     query =

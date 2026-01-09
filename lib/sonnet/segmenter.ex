@@ -1,36 +1,42 @@
-defmodule Sonnet.Workers.Ingester do
-  use Oban.Worker, queue: :default, max_attempts: 10
+defmodule Sonnet.Segmenter do
+  @moduledoc """
+  Module for segmenting audiobook files into individual chapter files.
+
+  This module handles the conversion of single m4b files (or other formats) 
+  into segmented files per chapter using codec copy. It creates individual 
+  media assets for each chapter and updates chapter records accordingly.
+  """
 
   require Logger
 
+  alias Sonnet.Repo
+  alias Sonnet.Library.Book
+  alias Sonnet.Library.Chapter
+  alias Sonnet.Library.MediaAsset
+
+  # 15 minutes
   @segment_duration_seconds 900
 
-  @impl Oban.Worker
-  def perform(%Oban.Job{args: args}) do
-    s3_key = args["s3_key"]
-    original_filename = args["original_filename"]
-    book_metadata = args["book_metadata"] || %{}
+  def segment_book(book_id, original_media_asset_id) do
+    import Ecto.Query
 
-    case ingest_single_file(s3_key, original_filename, book_metadata) do
-      :ok ->
-        :ok
+    book = Repo.get!(Book, book_id)
+    original_asset = Repo.get!(MediaAsset, original_media_asset_id)
 
-      {:error, reason} ->
-        Logger.error("Fatal error ingesting #{s3_key}: #{inspect(reason)}")
-        cleanup_fatal(s3_key)
-        {:error, reason}
-    end
-  end
+    chapters =
+      from(c in Chapter, where: c.book_id == ^book_id, order_by: c.position) |> Repo.all()
 
-  defp ingest_single_file(s3_key, original_filename, book_metadata) do
-    with {:ok, path} <- download_from_s3(s3_key),
-         {:ok, probe} <- probe_file(path),
-         cover_s3_key <- extract_and_upload_cover(path, probe),
-         {:ok, segments} <- segment_file(path, probe, original_filename),
-         {:ok, segments_data} <- upload_segments(segments),
-         {:ok, _} <- create_book_from_segments(segments_data, book_metadata, cover_s3_key) do
-      Sonnet.Library.broadcast_books_updated()
+    with {:ok, original_path} <- download_from_s3(original_asset.s3_key),
+         {:ok, probe} <- probe_file(original_path),
+         {:ok, segments} <- segment_file(original_path, probe, chapters),
+         {:ok, new_assets} <- upload_segments(segments),
+         {:ok, _} <- update_chapters_with_new_assets(chapters, new_assets) do
+      Logger.info("Successfully segmented book: #{book.title}")
       :ok
+    else
+      {:error, reason} ->
+        Logger.error("Segmentation failed for book #{book_id}: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 
@@ -42,11 +48,8 @@ defmodule Sonnet.Workers.Ingester do
       {:ok, _} ->
         {:ok, path}
 
-      {:error, {:http_error, 404, _}} ->
-        {:error, :not_found}
-
       {:error, reason} ->
-        {:error, {:transient, reason}}
+        {:error, {:download_failed, reason}}
     end
   end
 
@@ -64,26 +67,26 @@ defmodule Sonnet.Workers.Ingester do
       {output, 0} ->
         case Jason.decode(output) do
           {:ok, decoded} -> {:ok, decoded}
-          {:error, reason} -> {:error, "Invalid JSON from ffprobe: #{inspect(reason)}"}
+          {:error, reason} -> {:error, {:invalid_json, reason}}
         end
 
-      {_, _} ->
-        {:error, "failed to probe file"}
+      {_, exit_code} ->
+        {:error, {:probe_failed, exit_code}}
     end
   end
 
-  defp segment_file(original_path, probe, original_filename) do
+  defp segment_file(original_path, probe, chapters) do
     chapters_metadata = Map.get(probe, "chapters", [])
-    extension = Path.extname(original_filename) || ".m4a"
+    extension = Path.extname(original_path)
 
     if chapters_metadata == [] do
-      segment_by_duration(original_path, extension)
+      segment_by_duration(original_path, length(chapters), extension)
     else
       segment_by_chapters(original_path, chapters_metadata, extension)
     end
   end
 
-  defp segment_by_duration(original_path, extension) do
+  defp segment_by_duration(original_path, _num_chapters, extension) do
     output_dir = Briefly.create!(type: :directory)
 
     case System.cmd("ffmpeg", [
@@ -178,12 +181,7 @@ defmodule Sonnet.Workers.Ingester do
 
         case upload_segment(path, s3_key) do
           :ok ->
-            {:ok,
-             %{
-               s3_key: s3_key,
-               title: title,
-               duration_ms: get_audio_duration(path)
-             }}
+            {:ok, %{s3_key: s3_key, title: title, duration_ms: get_audio_duration(path)}}
 
           {:error, reason} ->
             {:error, {:upload_failed, reason}}
@@ -208,10 +206,6 @@ defmodule Sonnet.Workers.Ingester do
       {:ok, _} -> :ok
       {:error, reason} -> {:error, reason}
     end
-  end
-
-  defp create_book_from_segments(segments_data, book_metadata, cover_s3_key) do
-    Sonnet.Library.ingest_segmented!(segments_data, book_metadata, cover_s3_key)
   end
 
   defp calculate_file_hash(path) do
@@ -246,69 +240,36 @@ defmodule Sonnet.Workers.Ingester do
     end
   end
 
-  defp extract_and_upload_cover(path, probe) do
-    if has_video_stream?(probe) do
-      case extract_cover(path) do
-        {:ok, cover_path} ->
-          hash = calculate_hash(cover_path)
-          upload_cover(cover_path, hash)
+  defp update_chapters_with_new_assets(chapters, new_assets) do
+    Enum.zip(chapters, new_assets)
+    |> Enum.with_index()
+    |> Enum.reduce({:ok, nil}, fn {{chapter, asset}, index}, acc ->
+      case acc do
+        {:error, _} ->
+          acc
 
-        :error ->
-          nil
+        _ ->
+          media_asset = Repo.insert!(%MediaAsset{s3_key: asset.s3_key})
+
+          cumulative_start =
+            Enum.take(new_assets, index) |> Enum.map(& &1.duration_ms) |> Enum.sum()
+
+          cumulative_end = cumulative_start + asset.duration_ms
+
+          chapter_changeset =
+            Chapter.changeset(chapter, %{
+              duration_ms: asset.duration_ms,
+              start_ms: cumulative_start,
+              end_ms: cumulative_end,
+              media_asset_id: media_asset.id
+            })
+
+          case Repo.update(chapter_changeset) do
+            {:ok, _} -> {:ok, nil}
+            {:error, reason} -> {:error, reason}
+          end
       end
-    else
-      nil
-    end
-  end
-
-  defp has_video_stream?(%{"streams" => streams}) do
-    Enum.any?(streams, fn stream -> stream["codec_type"] == "video" end)
-  end
-
-  defp calculate_hash(path) do
-    File.stream!(path)
-    |> Enum.reduce(:crypto.hash_init(:sha256), fn chunk, acc ->
-      :crypto.hash_update(acc, chunk)
     end)
-    |> :crypto.hash_final()
-    |> Base.encode16(case: :lower)
-  end
-
-  defp extract_cover(path) do
-    output_path = Briefly.create!(type: :path, extname: ".jpg")
-
-    case System.cmd("ffmpeg", ["-i", path, "-frames:v", "1", "-f", "image2", output_path, "-y"]) do
-      {_, 0} ->
-        if File.exists?(output_path) and File.stat!(output_path).size > 0 do
-          {:ok, output_path}
-        else
-          :error
-        end
-
-      {_, _} ->
-        :error
-    end
-  end
-
-  defp upload_cover(path, hash) do
-    key = Path.join([prefix(), "covers", "#{hash}.jpg"])
-
-    path
-    |> ExAws.S3.Upload.stream_file()
-    |> ExAws.S3.upload(bucket(), key)
-    |> ExAws.request!()
-
-    key
-  end
-
-  defp cleanup_fatal(s3_key) do
-    ExAws.S3.delete_object(bucket(), full_key(s3_key)) |> ExAws.request()
-    Sonnet.Library.delete_media_asset_by_s3_key(s3_key)
-    :ok
-  rescue
-    e ->
-      Logger.warning("Cleanup failed for #{s3_key}: #{inspect(e)}")
-      :ok
   end
 
   defp bucket do

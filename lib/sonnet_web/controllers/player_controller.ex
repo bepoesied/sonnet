@@ -15,9 +15,9 @@ defmodule SonnetWeb.PlayerController do
           position: chapter.position,
           start_ms: chapter.start_ms,
           end_ms: chapter.end_ms,
+          duration_ms: chapter.duration_ms,
           media_asset_id: chapter.media_asset_id,
-          audio_url: Library.presigned_url(chapter.media_asset.s3_key),
-          duration_ms: chapter.end_ms - chapter.start_ms
+          audio_url: Library.presigned_url(chapter.media_asset.s3_key)
         }
       end)
 

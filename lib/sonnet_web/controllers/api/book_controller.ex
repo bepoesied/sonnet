@@ -39,8 +39,8 @@ defmodule SonnetWeb.API.BookController do
           position: chapter.position,
           start_ms: chapter.start_ms,
           end_ms: chapter.end_ms,
-          media_asset_id: chapter.media_asset_id,
-          duration_ms: chapter.end_ms - chapter.start_ms
+          duration_ms: chapter.duration_ms,
+          media_asset_id: chapter.media_asset_id
         }
       end)
 
