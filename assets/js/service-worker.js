@@ -1,5 +1,4 @@
 import { CacheableResponsePlugin } from "workbox-cacheable-response";
-import { ExpirationPlugin } from "workbox-expiration";
 import { RangeRequestsPlugin } from "workbox-range-requests";
 import { registerRoute } from "workbox-routing";
 import { CacheFirst } from "workbox-strategies";
@@ -40,10 +39,6 @@ function createCacheStrategy() {
         statuses: [200],
       }),
       new RangeRequestsPlugin(),
-      new ExpirationPlugin({
-        maxAgeSeconds: 30 * 24 * 60 * 60,
-        purgeOnQuotaError: true,
-      }),
     ],
   });
 }
