@@ -108,17 +108,16 @@ defmodule Sonnet.Segmenter do
     case System.cmd("ffmpeg", [
            "-i",
            original_path,
-           "-c:a",
+           "-map",
+           "0:a",
+           "-c",
            "copy",
-           "-vn",
            "-f",
            "segment",
            "-segment_time",
            Integer.to_string(@segment_duration_seconds),
            "-segment_list",
            "/dev/null",
-           "-reset_timestamps",
-           "1",
            Path.join(output_dir, "segment_%03d#{extension}")
          ]) do
       {_, 0} ->
