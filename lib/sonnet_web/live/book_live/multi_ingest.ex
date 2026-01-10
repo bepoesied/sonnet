@@ -72,7 +72,7 @@ defmodule SonnetWeb.BookLive.MultiIngest do
       socket
       |> allow_upload(:multi_book,
         accept: ~w(.mp3),
-        max_entries: 100,
+        max_entries: 500,
         max_file_size: 5_000_000_000,
         external: &presign_upload/2
       )
