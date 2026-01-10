@@ -28,7 +28,12 @@ defmodule Sonnet.Workers.Ingester do
          cover_s3_key <- extract_and_upload_cover(path, probe),
          {:ok, segments} <- segment_file(path, probe, original_filename),
          {:ok, segments_data} <- upload_segments(segments),
-         {:ok, _} <- create_book_from_segments(segments_data, book_metadata, cover_s3_key) do
+         {:ok, _} <-
+           create_book_from_segments(
+             segments_data,
+             merge_metadata(book_metadata, probe),
+             cover_s3_key
+           ) do
       Sonnet.Library.broadcast_books_updated()
       :ok
     end
@@ -70,6 +75,28 @@ defmodule Sonnet.Workers.Ingester do
       {_, _} ->
         {:error, "failed to probe file"}
     end
+  end
+
+  defp merge_metadata(user_metadata, probe) do
+    probe_metadata = extract_metadata_from_probe(probe)
+
+    %{
+      "title" => user_metadata["title"] || probe_metadata["title"],
+      "author" => user_metadata["author"] || probe_metadata["author"],
+      "narrator" => user_metadata["narrator"] || probe_metadata["narrator"],
+      "description" => user_metadata["description"] || probe_metadata["description"]
+    }
+  end
+
+  defp extract_metadata_from_probe(probe) do
+    format_tags = get_in(probe, ["format", "tags"]) || %{}
+
+    %{
+      "title" => Map.get(format_tags, "title"),
+      "author" => Map.get(format_tags, "artist"),
+      "narrator" => Map.get(format_tags, "album_artist"),
+      "description" => Map.get(format_tags, "description")
+    }
   end
 
   defp segment_file(original_path, probe, original_filename) do

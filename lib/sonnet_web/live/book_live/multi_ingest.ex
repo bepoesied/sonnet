@@ -34,10 +34,10 @@ defmodule SonnetWeb.BookLive.MultiIngest do
           phx-submit="save"
           class="flex flex-col gap-4"
         >
-          <.input field={@form[:title]} type="text" label="Title" required />
-          <.input field={@form[:author]} type="text" label="Author" />
-          <.input field={@form[:narrator]} type="text" label="Narrator" />
-          <.input field={@form[:description]} type="textarea" label="Description" rows="3" />
+          <.input field={@form[:title]} type="text" label="Title (optional)" />
+          <.input field={@form[:author]} type="text" label="Author (optional)" />
+          <.input field={@form[:narrator]} type="text" label="Narrator (optional)" />
+          <.input field={@form[:description]} type="textarea" label="Description (optional)" rows="3" />
 
           <label for={@uploads.multi_book.ref} phx-drop-target={@uploads.multi_book.ref}>
             <div class="label">
