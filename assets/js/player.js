@@ -28,15 +28,22 @@ import { AudioEngine } from "./audio-engine.js";
  * @property {boolean} isPlaying - Toggle state for playback
  * @property {boolean} isPending - Guard during async loads
  * @property {boolean} isDragging - Guard for seek bar updates
- * @property {Object} sleep - Sleep timer state
- * @property {string|null} sleep.mode - 'time' or 'end-of-chapter'
- * @property {number} sleep.remaining - Seconds remaining until pause
+ * @property {number} sleepRemaining - Seconds remaining until pause
  * @property {number} lastSync - Timestamp of last API sync
  * @property {number} lastPosition - Cached audio currentTime
  * @property {number} lastManualSeek - Timestamp of last user seek
  */
 
 class AudioPlayer {
+  static SEEK_FORWARD = 10;
+  static SEEK_BACKWARD = -11;
+  static SEEK_THRESHOLD_END = 0.5;
+  static SYNC_INTERVAL_MS = 30000;
+  static SYNC_RETRY_MS = 60000;
+  static SEEK_LOCK_MS = 10000;
+  static LOAD_TIMEOUT_MS = 10000;
+  static CACHE_LOOKAHEAD = 4;
+
   constructor() {
     this.root = document.getElementById("player-root");
     if (!this.root) return;
@@ -51,7 +58,7 @@ class AudioPlayer {
       isPlaying: false,
       isPending: false,
       isDragging: false,
-      sleep: { mode: null, remaining: 0 },
+      sleepRemaining: 0,
       lastSync: 0,
       lastPosition: 0,
       lastManualSeek: 0,
@@ -126,11 +133,9 @@ class AudioPlayer {
       "current-chapter-title",
       "book-completed-badge",
       "cancel-sleep-timer",
-      "cached-indicator",
       "time-controls",
       "sleep-toggle",
       "chapters-toggle",
-      "chapters-collapse",
       "download-book-btn",
       "clear-played-btn",
       "clear-other-books-btn",
@@ -142,8 +147,12 @@ class AudioPlayer {
 
   setupListeners() {
     this.el["play-pause-btn"]?.addEventListener("click", () => this.toggle());
-    this.el["rewind-btn"]?.addEventListener("click", () => this.seek(-11));
-    this.el["forward-btn"]?.addEventListener("click", () => this.seek(10));
+    this.el["rewind-btn"]?.addEventListener("click", () =>
+      this.seek(AudioPlayer.SEEK_BACKWARD),
+    );
+    this.el["forward-btn"]?.addEventListener("click", () =>
+      this.seek(AudioPlayer.SEEK_FORWARD),
+    );
     this.el["cancel-sleep-timer"]?.addEventListener("click", () =>
       this.clearSleep(),
     );
@@ -188,7 +197,6 @@ class AudioPlayer {
           this.updateChapterCacheStatus(e.data.url);
         }
         if (e.data.type === "CACHE_CLEARED") {
-          this.updateCachedIndicator(false);
           this.refreshAllChapterCacheStatus();
         }
         if (e.data.type === "PLAYED_CHAPTERS_CLEARED") {
@@ -316,7 +324,7 @@ class AudioPlayer {
       await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Timeout loading audio"));
-        }, 10000);
+        }, AudioPlayer.LOAD_TIMEOUT_MS);
 
         const metadataHandler = () => {
           clearTimeout(timeout);
@@ -408,19 +416,23 @@ class AudioPlayer {
 
   seek(s) {
     if (!this.engine.duration) return;
+    const oldTime = this.engine.currentTime;
     this.engine.currentTime = Math.max(
       0,
       Math.min(this.engine.currentTime + s, this.engine.duration),
     );
+    this.updateSleepTimer(this.engine.currentTime - oldTime);
     this.recordSeek();
   }
 
   seekTo(seconds) {
     if (!this.engine.duration) return;
+    const oldTime = this.engine.currentTime;
     this.engine.currentTime = Math.max(
       0,
       Math.min(seconds, this.engine.duration),
     );
+    this.updateSleepTimer(this.engine.currentTime - oldTime);
     this.recordSeek();
     this.save();
   }
@@ -455,31 +467,20 @@ class AudioPlayer {
       this.el["current-time"].textContent = this.formatSeconds(currentTime);
   }
 
-  handleSleepTimer(delta) {
-    if (!this.state.sleep.mode || delta <= 0 || delta >= 1) return;
+  updateSleepTimer(delta) {
+    if (this.state.sleepRemaining <= 0 || delta <= 0) return;
 
-    this.state.sleep.remaining = this.calculateSleepRemaining(delta);
+    this.state.sleepRemaining = Math.max(0, this.state.sleepRemaining - delta);
     this.updateSleepDisplay();
-    this.checkSleepExpiration();
-  }
 
-  calculateSleepRemaining(delta) {
-    if (this.state.sleep.mode === "end-of-chapter") {
-      return Math.max(
-        0,
-        (this.state.chapter.end_ms - this.engine.currentTime * 1000) / 1000,
-      );
-    }
-    return Math.max(0, this.state.sleep.remaining - delta);
-  }
-
-  checkSleepExpiration() {
-    if (this.state.sleep.remaining <= 0) {
+    if (this.state.sleepRemaining <= 0) {
       this.pause();
       this.clearSleep();
-      if (this.state.sleep.mode === "end-of-chapter")
-        this.engine.currentTime = (this.state.chapter.end_ms - 1) / 1000;
     }
+  }
+
+  handleSleepTimer(delta) {
+    this.updateSleepTimer(delta);
   }
 
   getLocalStorageProgress() {
@@ -563,19 +564,27 @@ class AudioPlayer {
     if (!this.engine.duration) return;
     const time = this.seekBarValueToTime(parseFloat(e.target.value));
 
-    if (time >= this.engine.duration - 0.5) {
+    if (this.seekedToEnd(time)) {
       this.engine.currentTime = this.engine.duration;
       if (this.el["seek-bar"]) this.el["seek-bar"].value = "100";
-      const nextChapter = this.getNextChapter();
-      if (nextChapter) {
-        this.goTo(nextChapter.id, 0, this.state.isPlaying);
-      } else {
-        this.finish();
-      }
+      this.goToNextOrFinish();
     } else {
       this.seekTo(time);
     }
     this.state.isDragging = false;
+  }
+
+  seekedToEnd(time) {
+    return time >= this.engine.duration - AudioPlayer.SEEK_THRESHOLD_END;
+  }
+
+  goToNextOrFinish() {
+    const nextChapter = this.getNextChapter();
+    if (nextChapter) {
+      this.goTo(nextChapter.id, 0, this.state.isPlaying);
+    } else {
+      this.finish();
+    }
   }
 
   seekBarValueToTime(value) {
@@ -591,27 +600,26 @@ class AudioPlayer {
     }
   }
 
-  setSleep(m) {
+  setSleep(minutes) {
     this.clearSleep();
-    this.state.sleep.mode = m === "end-of-chapter" ? "end-of-chapter" : "time";
-    this.state.sleep.remaining = this.calculateInitialSleepRemaining(m);
+    let remaining;
+
+    if (minutes === "end-of-chapter") {
+      remaining =
+        this.state.chapter.duration_ms / 1000 - this.engine.currentTime;
+    } else {
+      remaining = parseInt(minutes) * 60;
+    }
+
+    this.state.sleepRemaining = Math.max(0, remaining);
     this.updateSleepDisplay();
     this.el["cancel-sleep-timer"]?.classList.remove("hidden");
     this.closeAccordions();
   }
 
-  calculateInitialSleepRemaining(m) {
-    if (m === "end-of-chapter") {
-      return (
-        (this.state.chapter.end_ms - this.engine.currentTime * 1000) / 1000
-      );
-    }
-    return parseInt(m) * 60;
-  }
-
   updateSleepDisplay() {
-    if (!this.state.sleep.mode || !this.el["sleep-timer-text"]) return;
-    const s = Math.ceil(this.state.sleep.remaining);
+    if (!this.el["sleep-timer-text"]) return;
+    const s = Math.ceil(this.state.sleepRemaining);
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     const text = h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m` : `${s}s`;
@@ -619,7 +627,7 @@ class AudioPlayer {
   }
 
   clearSleep() {
-    this.state.sleep = { mode: null, remaining: 0 };
+    this.state.sleepRemaining = 0;
     if (this.el["sleep-timer-text"])
       this.el["sleep-timer-text"].textContent = "Sleep Timer";
     this.el["cancel-sleep-timer"]?.classList.add("hidden");
@@ -660,7 +668,11 @@ class AudioPlayer {
     const off = this.getCurrentPositionMs();
     this.updateLocalStorageProgress(this.state.chapter.id, off);
 
-    if (!force && Date.now() - this.state.lastSync < 30000) return;
+    if (
+      !force &&
+      Date.now() - this.state.lastSync < AudioPlayer.SYNC_INTERVAL_MS
+    )
+      return;
     this.state.lastSync = Date.now();
     return this.api(
       "progress",
@@ -680,7 +692,8 @@ class AudioPlayer {
 
       const remote = await res.json();
       const local = this.getLocalStorageProgress();
-      const seekLock = Date.now() - this.state.lastManualSeek < 10000;
+      const seekLock =
+        Date.now() - this.state.lastManualSeek < AudioPlayer.SEEK_LOCK_MS;
 
       if (this.shouldSyncLocalToServer(local, remote)) {
         this.save();
@@ -688,7 +701,10 @@ class AudioPlayer {
         this.syncPositionFromServer(remote);
       }
     } catch (e) {}
-    setTimeout(() => this.state.isPlaying && this.sync(), 60000);
+    setTimeout(
+      () => this.state.isPlaying && this.sync(),
+      AudioPlayer.SYNC_RETRY_MS,
+    );
   }
 
   shouldSyncLocalToServer(local, remote) {
@@ -750,7 +766,6 @@ class AudioPlayer {
     try {
       const cache = await caches.open(CACHE_NAME);
       const cached = await isCached(cache, this.state.chapter.audio_url);
-      this.updateCachedIndicator(cached);
       this.updateChapterCacheStatus(this.state.chapter.audio_url);
     } catch (e) {}
   }
@@ -765,10 +780,7 @@ class AudioPlayer {
       const chapterLinks = this.el["chapter-list"].querySelectorAll("a");
       chapterLinks.forEach((link) => {
         if (link.dataset.audioUrl === url) {
-          const icon = link.querySelector(".chapter-cache-icon");
-          if (icon) {
-            icon.classList.toggle("hidden", !cached);
-          }
+          this.setChapterCacheIcon(link, cached);
         }
       });
     } catch (e) {}
@@ -785,51 +797,54 @@ class AudioPlayer {
         const url = link.dataset.audioUrl;
         if (url) {
           const cached = await isCached(cache, url);
-          const icon = link.querySelector(".chapter-cache-icon");
-          if (icon) {
-            icon.classList.toggle("hidden", !cached);
-          }
+          this.setChapterCacheIcon(link, cached);
         }
       }
     } catch (e) {}
   }
 
+  setChapterCacheIcon(link, isCached) {
+    const icon = link.querySelector(".chapter-cache-icon");
+    if (icon) {
+      icon.classList.toggle("hidden", !isCached);
+    }
+  }
+
+  postToServiceWorker(message) {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.active.postMessage(message);
+    });
+  }
+
   cacheCurrentAndNext() {
-    if (!("serviceWorker" in navigator) || !this.state.chapter) return;
+    if (!this.state.chapter) return;
 
     const currentIndex = this.findChapterIndex(this.state.chapter.id);
     const urlsToCache = [];
 
-    for (let i = currentIndex; i < currentIndex + 4; i++) {
+    for (
+      let i = currentIndex;
+      i < currentIndex + AudioPlayer.CACHE_LOOKAHEAD;
+      i++
+    ) {
       if (i >= 0 && i < this.book.chapters.length) {
         urlsToCache.push(this.book.chapters[i].audio_url);
       }
     }
 
     if (urlsToCache.length > 0) {
-      navigator.serviceWorker.ready.then((registration) => {
-        registration.active.postMessage({
-          type: "CACHE_URLS",
-          urls: urlsToCache,
-        });
-      });
+      this.postToServiceWorker({ type: "CACHE_URLS", urls: urlsToCache });
     }
   }
 
   downloadEntireBook() {
-    if (!("serviceWorker" in navigator)) return;
-
     const urls = this.book.chapters.map((c) => c.audio_url);
-    navigator.serviceWorker.ready.then((registration) => {
-      registration.active.postMessage({
-        type: "CACHE_ENTIRE_BOOK",
-        urls: urls,
-      });
-    });
+    this.postToServiceWorker({ type: "CACHE_ENTIRE_BOOK", urls: urls });
   }
 
   clearPlayedChapters() {
-    if (!("serviceWorker" in navigator) || !this.state.chapter) return;
+    if (!this.state.chapter) return;
 
     const currentIndex = this.findChapterIndex(this.state.chapter.id);
     const playedUrls = [];
@@ -841,32 +856,19 @@ class AudioPlayer {
     }
 
     if (playedUrls.length > 0) {
-      navigator.serviceWorker.ready.then((registration) => {
-        registration.active.postMessage({
-          type: "CLEAR_PLAYED_CHAPTERS",
-          urls: playedUrls,
-        });
+      this.postToServiceWorker({
+        type: "CLEAR_PLAYED_CHAPTERS",
+        urls: playedUrls,
       });
     }
   }
 
   clearOtherBooks() {
-    if (!("serviceWorker" in navigator)) return;
-
     const currentBookUrls = this.book.chapters.map((c) => c.audio_url);
-    navigator.serviceWorker.ready.then((registration) => {
-      registration.active.postMessage({
-        type: "CLEAR_OTHER_BOOKS",
-        currentBookUrls: currentBookUrls,
-      });
+    this.postToServiceWorker({
+      type: "CLEAR_OTHER_BOOKS",
+      currentBookUrls: currentBookUrls,
     });
-  }
-
-  updateCachedIndicator(isCached) {
-    if (this.el["cached-indicator"]) {
-      this.el["cached-indicator"].classList.toggle("opacity-100", isCached);
-      this.el["cached-indicator"].classList.toggle("opacity-0", !isCached);
-    }
   }
 
   updateMediaMetadata() {
@@ -880,34 +882,24 @@ class AudioPlayer {
         : [],
     });
 
+    this.setMediaSessionAction("play", () => this.play());
+    this.setMediaSessionAction("pause", () => this.pause());
+    this.setMediaSessionAction("seekto", (details) => {
+      if (details.seekTime) this.seekTo(details.seekTime);
+    });
+    this.setMediaSessionAction("seekbackward", () =>
+      this.seek(AudioPlayer.SEEK_BACKWARD),
+    );
+    this.setMediaSessionAction("seekforward", () =>
+      this.seek(AudioPlayer.SEEK_FORWARD),
+    );
+    this.setMediaSessionAction("previoustrack", () => this.jump(-1));
+    this.setMediaSessionAction("nexttrack", () => this.jump(1));
+  }
+
+  setMediaSessionAction(action, handler) {
     try {
-      navigator.mediaSession.setActionHandler("play", () => this.play());
-    } catch (e) {}
-    try {
-      navigator.mediaSession.setActionHandler("pause", () => this.pause());
-    } catch (e) {}
-    try {
-      navigator.mediaSession.setActionHandler("seekto", (details) => {
-        if (details.seekTime) this.seekTo(details.seekTime);
-      });
-    } catch (e) {}
-    try {
-      navigator.mediaSession.setActionHandler("seekbackward", () =>
-        this.seek(-10),
-      );
-    } catch (e) {}
-    try {
-      navigator.mediaSession.setActionHandler("seekforward", () =>
-        this.seek(10),
-      );
-    } catch (e) {}
-    try {
-      navigator.mediaSession.setActionHandler("previoustrack", () =>
-        this.jump(-1),
-      );
-    } catch (e) {}
-    try {
-      navigator.mediaSession.setActionHandler("nexttrack", () => this.jump(1));
+      navigator.mediaSession.setActionHandler(action, handler);
     } catch (e) {}
   }
 
