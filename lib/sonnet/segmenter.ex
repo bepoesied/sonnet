@@ -77,12 +77,28 @@ defmodule Sonnet.Segmenter do
 
   defp segment_file(original_path, probe, chapters) do
     chapters_metadata = Map.get(probe, "chapters", [])
-    extension = Path.extname(original_path)
+    extension = get_extension_from_probe(probe)
 
     if chapters_metadata == [] do
       segment_by_duration(original_path, length(chapters), extension)
     else
       segment_by_chapters(original_path, chapters_metadata, extension)
+    end
+  end
+
+  defp get_extension_from_probe(probe) do
+    case get_in(probe, ["format", "format_name"]) do
+      nil ->
+        ".m4b"
+
+      format_name ->
+        case format_name do
+          name when name in ["mov,mp4,m4a,3gp,3g2,mj2", "mp4", "m4a", "mov"] -> ".m4b"
+          name when name in ["mp3"] -> ".mp3"
+          name when name in ["ogg", "oga"] -> ".ogg"
+          name when name in ["flac"] -> ".flac"
+          _ -> ".m4b"
+        end
     end
   end
 
