@@ -116,56 +116,44 @@ defmodule Sonnet.Library do
       |> Enum.reduce(Multi.new(), fn {%{s3_key: s3_key, title: title, duration_ms: duration_ms},
                                       index},
                                      multi ->
-        media_asset =
-          Repo.insert!(%MediaAsset{s3_key: s3_key},
-            on_conflict: :nothing,
-            conflict_target: :s3_key,
-            returning: true
-          )
+        asset_name = "get_or_insert_media_asset_#{index}"
+        chapter_name = "insert_chapter_#{index}"
 
-        name = "insert_chapter_#{index}"
+        Multi.insert_or_update(
+          multi,
+          asset_name,
+          MediaAsset.changeset(%MediaAsset{}, %{s3_key: s3_key}),
+          on_conflict: :nothing,
+          conflict_target: :s3_key,
+          returning: true
+        )
+        |> Multi.run(chapter_name, fn repo, %{^asset_name => asset} ->
+          chapter_title = title || "Chapter #{index + 1}"
 
-        chapter_title = title || "Chapter #{index + 1}"
+          cumulative_start =
+            segments_data
+            |> Enum.take(index)
+            |> Enum.map(& &1.duration_ms)
+            |> Enum.sum()
 
-        cumulative_start =
-          segments_data
-          |> Enum.take(index)
-          |> Enum.map(& &1.duration_ms)
-          |> Enum.sum()
+          cumulative_end = cumulative_start + duration_ms
 
-        cumulative_end = cumulative_start + duration_ms
+          chapter_changeset =
+            Chapter.changeset(%Chapter{}, %{
+              position: index,
+              title: chapter_title,
+              start_ms: cumulative_start,
+              end_ms: cumulative_end,
+              duration_ms: duration_ms,
+              book_id: book.id,
+              media_asset_id: asset.id
+            })
 
-        chapter_changeset =
-          Chapter.changeset(%Chapter{}, %{
-            position: index,
-            title: chapter_title,
-            start_ms: cumulative_start,
-            end_ms: cumulative_end,
-            duration_ms: duration_ms,
-            book_id: book.id,
-            media_asset_id: media_asset.id
-          })
-
-        Multi.insert(multi, name, chapter_changeset)
+          repo.insert(chapter_changeset)
+        end)
       end)
     end)
     |> Repo.transaction()
-  end
-
-  def find_books_needing_migration do
-    import Ecto.Query
-
-    from(c in Chapter,
-      group_by: c.book_id,
-      group_by: c.media_asset_id,
-      having: count(c.id) > 1,
-      select: %{book_id: c.book_id, media_asset_id: c.media_asset_id}
-    )
-    |> Repo.all()
-  end
-
-  def segment_book!(book_id, media_asset_id) do
-    Sonnet.Segmenter.segment_book(book_id, media_asset_id)
   end
 
   def list_books(user_id \\ nil) do

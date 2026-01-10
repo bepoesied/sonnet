@@ -1,5 +1,5 @@
 defmodule Sonnet.Workers.Ingester do
-  use Oban.Worker, queue: :default, max_attempts: 10
+  use Oban.Worker, queue: :default, max_attempts: 3
 
   require Logger
 
@@ -26,7 +26,7 @@ defmodule Sonnet.Workers.Ingester do
     with {:ok, path} <- download_from_s3(s3_key),
          {:ok, probe} <- probe_file(path),
          cover_s3_key <- extract_and_upload_cover(path, probe),
-         {:ok, segments} <- segment_file(path, probe, original_filename),
+         {:ok, segments} <- segment_file(path, probe, []),
          {:ok, segments_data} <- upload_segments(segments),
          {:ok, _} <-
            create_book_from_segments(
@@ -90,12 +90,17 @@ defmodule Sonnet.Workers.Ingester do
     probe_metadata = extract_metadata_from_probe(probe)
 
     %{
-      "title" => user_metadata["title"] || probe_metadata["title"],
-      "author" => user_metadata["author"] || probe_metadata["author"],
-      "narrator" => user_metadata["narrator"] || probe_metadata["narrator"],
-      "description" => user_metadata["description"] || probe_metadata["description"]
+      "title" =>
+        empty_string_to_nil(user_metadata["title"]) || probe_metadata["title"] || "Untitled Book",
+      "author" => empty_string_to_nil(user_metadata["author"]) || probe_metadata["author"],
+      "narrator" => empty_string_to_nil(user_metadata["narrator"]) || probe_metadata["narrator"],
+      "description" =>
+        empty_string_to_nil(user_metadata["description"]) || probe_metadata["description"]
     }
   end
+
+  defp empty_string_to_nil(""), do: nil
+  defp empty_string_to_nil(value), do: value
 
   defp extract_metadata_from_probe(probe) do
     format_tags = get_in(probe, ["format", "tags"]) || %{}
@@ -108,28 +113,42 @@ defmodule Sonnet.Workers.Ingester do
     }
   end
 
-  defp segment_file(original_path, probe, original_filename) do
+  defp segment_file(original_path, probe, chapters) do
     chapters_metadata = Map.get(probe, "chapters", [])
-    extension = Path.extname(original_filename) || ".m4a"
+    extension = get_extension_from_probe(probe)
 
     if chapters_metadata == [] do
-      segment_by_duration(original_path, extension)
+      segment_by_duration(original_path, length(chapters), extension)
     else
       segment_by_chapters(original_path, chapters_metadata, extension)
     end
   end
 
-  defp segment_by_duration(original_path, extension) do
+  defp get_extension_from_probe(probe) do
+    case get_in(probe, ["format", "format_name"]) do
+      nil ->
+        ".m4b"
+
+      format_name ->
+        case format_name do
+          name when name in ["mov,mp4,m4a,3gp,3g2,mj2", "mp4", "m4a", "mov"] -> ".m4b"
+          name when name in ["mp3"] -> ".mp3"
+          name when name in ["ogg", "oga"] -> ".ogg"
+          name when name in ["flac"] -> ".flac"
+          _ -> ".m4b"
+        end
+    end
+  end
+
+  defp segment_by_duration(original_path, _num_chapters, extension) do
     output_dir = Briefly.create!(type: :directory)
 
     case System.cmd("ffmpeg", [
            "-i",
            original_path,
-           "-map_metadata",
-           "0",
-           "-id3v2_version",
-           "3",
-           "-c:a",
+           "-map",
+           "0:a",
+           "-c",
            "copy",
            "-f",
            "segment",
@@ -137,8 +156,6 @@ defmodule Sonnet.Workers.Ingester do
            Integer.to_string(@segment_duration_seconds),
            "-segment_list",
            "/dev/null",
-           "-reset_timestamps",
-           "1",
            Path.join(output_dir, "segment_%03d#{extension}")
          ]) do
       {_, 0} ->
@@ -180,6 +197,8 @@ defmodule Sonnet.Workers.Ingester do
                original_path,
                "-t",
                Float.to_string(duration),
+               "-map",
+               "0:a",
                "-c",
                "copy",
                "-y",
