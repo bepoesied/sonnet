@@ -141,10 +141,9 @@ defmodule SonnetWeb.BookLive.MultiIngest do
   end
 
   defp probe_audio_duration(s3_key) do
-    key = full_s3_key(s3_key)
     path = Briefly.create!(type: :path)
 
-    case ExAws.S3.download_file(bucket(), key, path) |> ExAws.request() do
+    case Sonnet.Storage.download_file(s3_key, path) do
       {:ok, _} ->
         case System.cmd("ffprobe", [
                "-v",
@@ -172,26 +171,9 @@ defmodule SonnetWeb.BookLive.MultiIngest do
     end
   end
 
-  defp full_s3_key(s3_key) do
-    prefix = Application.get_env(:sonnet, :ingest_prefix) || ""
-    Path.join(prefix, s3_key)
-  end
-
-  defp bucket do
-    Application.get_env(:sonnet, :ingest_bucket)
-  end
-
   defp presign_upload(entry, socket) do
-    config = ExAws.Config.new(:s3)
-    bucket = Application.get_env(:sonnet, :ingest_bucket)
-    prefix = Application.get_env(:sonnet, :ingest_prefix)
-    key = Path.join(prefix, Ecto.UUID.generate())
-
-    {:ok, url} =
-      ExAws.S3.presigned_url(config, :put, bucket, key,
-        expires_in: 3600,
-        query_params: [{"Content-Type", entry.client_type}]
-      )
+    key = Path.join(Sonnet.Storage.prefix(), Ecto.UUID.generate())
+    url = Sonnet.Storage.presigned_put_url(key, 3600, [{"Content-Type", entry.client_type}])
 
     {:ok, %{uploader: "S3", key: key, url: url}, socket}
   end

@@ -252,13 +252,6 @@ defmodule SonnetWeb.LibraryLive do
 
   defp upload_cover_to_s3(path, hash) do
     key = Path.join(["covers", "#{hash}.jpg"])
-    bucket = Application.get_env(:sonnet, :ingest_bucket)
-
-    path
-    |> ExAws.S3.Upload.stream_file()
-    |> ExAws.S3.upload(bucket, key)
-    |> ExAws.request!()
-
-    key
+    Sonnet.Storage.upload_file!(path, key)
   end
 end

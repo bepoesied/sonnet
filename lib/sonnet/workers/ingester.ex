@@ -42,25 +42,12 @@ defmodule Sonnet.Workers.Ingester do
   end
 
   defp download_from_s3(s3_key) do
-    key = full_key(s3_key)
     path = Briefly.create!(type: :path)
-
-    case ExAws.S3.download_file(bucket(), key, path) |> ExAws.request() do
-      {:ok, _} ->
-        {:ok, path}
-
-      {:error, {:http_error, 404, _}} ->
-        {:error, :not_found}
-
-      {:error, reason} ->
-        {:error, {:transient, reason}}
-    end
+    Sonnet.Storage.download_file(s3_key, path)
   end
 
   defp delete_from_s3(s3_key) do
-    key = full_key(s3_key)
-    ExAws.S3.delete_object(bucket(), key) |> ExAws.request()
-
+    Sonnet.Storage.delete_object(s3_key)
     {:ok, :ok}
   end
 
@@ -229,7 +216,7 @@ defmodule Sonnet.Workers.Ingester do
       Enum.map(segments, fn %{path: path, title: title} ->
         hash = calculate_file_hash(path)
         extension = Path.extname(path)
-        s3_key = Path.join([prefix(), "books", "#{hash}#{extension}"])
+        s3_key = Path.join([Sonnet.Storage.prefix(), "books", "#{hash}#{extension}"])
 
         case upload_segment(path, s3_key) do
           :ok ->
@@ -255,14 +242,7 @@ defmodule Sonnet.Workers.Ingester do
   end
 
   defp upload_segment(path, s3_key) do
-    path
-    |> ExAws.S3.Upload.stream_file()
-    |> ExAws.S3.upload(bucket(), s3_key)
-    |> ExAws.request()
-    |> case do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
+    Sonnet.Storage.upload_file(path, s3_key)
   end
 
   defp create_book_from_segments(segments_data, book_metadata, cover_s3_key) do
@@ -346,35 +326,17 @@ defmodule Sonnet.Workers.Ingester do
   end
 
   defp upload_cover(path, hash) do
-    key = Path.join([prefix(), "covers", "#{hash}.jpg"])
-
-    path
-    |> ExAws.S3.Upload.stream_file()
-    |> ExAws.S3.upload(bucket(), key)
-    |> ExAws.request!()
-
-    key
+    key = Path.join([Sonnet.Storage.prefix(), "covers", "#{hash}.jpg"])
+    Sonnet.Storage.upload_file!(path, key)
   end
 
   defp cleanup_fatal(s3_key) do
-    ExAws.S3.delete_object(bucket(), full_key(s3_key)) |> ExAws.request()
+    Sonnet.Storage.delete_object(s3_key)
     Sonnet.Library.delete_media_asset_by_s3_key(s3_key)
     :ok
   rescue
     e ->
       Logger.warning("Cleanup failed for #{s3_key}: #{inspect(e)}")
       :ok
-  end
-
-  defp bucket do
-    Application.get_env(:sonnet, :ingest_bucket)
-  end
-
-  defp prefix do
-    Application.get_env(:sonnet, :ingest_prefix) || ""
-  end
-
-  defp full_key(s3_key) do
-    Path.join(prefix(), s3_key)
   end
 end

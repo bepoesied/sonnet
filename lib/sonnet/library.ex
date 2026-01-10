@@ -21,7 +21,7 @@ defmodule Sonnet.Library do
 
   def create_media_asset!(s3_key) do
     Repo.insert!(MediaAsset.changeset(%MediaAsset{}, %{s3_key: s3_key}),
-      on_conflict: :nothing,
+      on_conflict: [set: [s3_key: s3_key]],
       conflict_target: :s3_key,
       returning: true
     )
@@ -119,11 +119,11 @@ defmodule Sonnet.Library do
         asset_name = "get_or_insert_media_asset_#{index}"
         chapter_name = "insert_chapter_#{index}"
 
-        Multi.insert_or_update(
+        Multi.insert(
           multi,
           asset_name,
           MediaAsset.changeset(%MediaAsset{}, %{s3_key: s3_key}),
-          on_conflict: :nothing,
+          on_conflict: [set: [s3_key: s3_key]],
           conflict_target: :s3_key,
           returning: true
         )
@@ -233,11 +233,7 @@ defmodule Sonnet.Library do
   def presigned_url(nil), do: nil
 
   def presigned_url(s3_key) do
-    config = ExAws.Config.new(:s3)
-    bucket = Application.get_env(:sonnet, :ingest_bucket)
-
-    {:ok, url} = ExAws.S3.presigned_url(config, :get, bucket, s3_key, expires_in: 3600)
-    url
+    Sonnet.Storage.presigned_get_url(s3_key)
   end
 
   def update_book(id, attrs) do

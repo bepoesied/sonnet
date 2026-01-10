@@ -27,19 +27,7 @@ defmodule Sonnet.Workers.MediaAssetCleanupSingle do
   end
 
   defp s3_object_exists?(s3_key) do
-    bucket = Application.get_env(:sonnet, :ingest_bucket)
-
-    case ExAws.S3.head_object(bucket, s3_key) |> ExAws.request() do
-      {:ok, _} ->
-        true
-
-      {:error, {:http_error, 404, _}} ->
-        false
-
-      {:error, reason} ->
-        Logger.warning("Error checking S3 object existence (#{s3_key}): #{inspect(reason)}")
-        false
-    end
+    Sonnet.Storage.object_exists?(s3_key)
   end
 
   defp delete_from_s3_and_db(asset) do
@@ -56,11 +44,6 @@ defmodule Sonnet.Workers.MediaAssetCleanupSingle do
   end
 
   defp delete_from_s3(s3_key) do
-    bucket = Application.get_env(:sonnet, :ingest_bucket)
-
-    case ExAws.S3.delete_object(bucket, s3_key) |> ExAws.request() do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
+    Sonnet.Storage.delete_object(s3_key)
   end
 end

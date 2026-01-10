@@ -176,16 +176,8 @@ defmodule SonnetWeb.BookLive.Ingest do
   end
 
   defp presign_upload(entry, socket) do
-    config = ExAws.Config.new(:s3)
-    bucket = Application.get_env(:sonnet, :ingest_bucket)
-    prefix = Application.get_env(:sonnet, :ingest_prefix)
-    key = Path.join(prefix, Ecto.UUID.generate())
-
-    {:ok, url} =
-      ExAws.S3.presigned_url(config, :put, bucket, key,
-        expires_in: 3600,
-        query_params: [{"Content-Type", entry.client_type}]
-      )
+    key = Path.join(Sonnet.Storage.prefix(), Ecto.UUID.generate())
+    url = Sonnet.Storage.presigned_put_url(key, 3600, [{"Content-Type", entry.client_type}])
 
     {:ok, %{uploader: "S3", key: key, url: url}, socket}
   end
