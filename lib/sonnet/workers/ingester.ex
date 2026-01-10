@@ -33,7 +33,9 @@ defmodule Sonnet.Workers.Ingester do
              segments_data,
              merge_metadata(book_metadata, probe),
              cover_s3_key
-           ) do
+           ),
+         {:ok, _} <-
+           delete_from_s3(original_filename) do
       Sonnet.Library.broadcast_books_updated()
       :ok
     end
@@ -53,6 +55,13 @@ defmodule Sonnet.Workers.Ingester do
       {:error, reason} ->
         {:error, {:transient, reason}}
     end
+  end
+
+  defp delete_from_s3(s3_key) do
+    key = full_key(s3_key)
+    ExAws.S3.delete_object(bucket(), key) |> ExAws.request()
+
+    {:ok, :ok}
   end
 
   defp probe_file(path) do
