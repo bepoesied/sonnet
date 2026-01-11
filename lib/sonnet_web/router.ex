@@ -2,6 +2,7 @@ defmodule SonnetWeb.Router do
   use SonnetWeb, :router
 
   import SonnetWeb.UserAuth
+  import Oban.Web.Router
 
   pipeline :browser do
     plug :accepts, ["html"]
@@ -43,13 +44,11 @@ defmodule SonnetWeb.Router do
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:sonnet, :dev_routes) do
     import Phoenix.LiveDashboard.Router
-    import Oban.Web.Router
 
     scope "/dev" do
       pipe_through :browser
 
       live_dashboard "/dashboard", metrics: SonnetWeb.Telemetry
-      oban_dashboard("/oban")
     end
   end
 
@@ -67,6 +66,8 @@ defmodule SonnetWeb.Router do
       live "/library", LibraryLive, :index
       live "/library/books/:id/edit", LibraryLive, :edit
     end
+
+    oban_dashboard("/oban")
   end
 
   scope "/", SonnetWeb do
