@@ -103,71 +103,20 @@ defmodule SonnetWeb.BookLive.MultiIngest do
         {:noreply, put_flash(socket, :error, "Please select at least one file")}
 
       files ->
-        files_with_durations =
-          Enum.map(files, fn file ->
-            duration = probe_audio_duration(file.key)
-            Map.put(file, :duration_ms, duration)
-          end)
+        s3_keys = Enum.map(files, & &1.key)
+        original_filenames = Enum.map(files, & &1.client_name)
 
-        sorted_files = Enum.sort_by(files_with_durations, & &1.client_name)
-        s3_keys = Enum.map(sorted_files, & &1.key)
-        original_filenames = Enum.map(sorted_files, & &1.client_name)
-        durations = Enum.map(sorted_files, & &1.duration_ms)
+        Sonnet.Workers.MultiIngester.new(%{
+          s3_keys: s3_keys,
+          original_filenames: original_filenames,
+          book_metadata: book_params
+        })
+        |> Oban.insert()
 
-        media_assets = Enum.map(s3_keys, &Sonnet.Library.create_media_asset!/1)
-
-        case Sonnet.Library.ingest_multi_file!(
-               s3_keys,
-               original_filenames,
-               media_assets,
-               durations,
-               book_params
-             ) do
-          {:ok, _} ->
-            Sonnet.Library.broadcast_books_updated()
-
-            {:noreply,
-             socket
-             |> put_flash(:info, "Successfully uploaded #{length(files)} files")
-             |> redirect(to: ~p"/library")}
-
-          {:error, _name, reason, _changes} ->
-            {:noreply, put_flash(socket, :error, "Error creating book: #{inspect(reason)}")}
-
-          {:error, reason} ->
-            {:noreply, put_flash(socket, :error, "Error creating book: #{inspect(reason)}")}
-        end
-    end
-  end
-
-  defp probe_audio_duration(s3_key) do
-    path = Briefly.create!(type: :path)
-
-    case Sonnet.Storage.download_file(s3_key, path) do
-      {:ok, _} ->
-        case System.cmd("ffprobe", [
-               "-v",
-               "quiet",
-               "-print_format",
-               "json",
-               "-show_format",
-               path
-             ]) do
-          {output, 0} ->
-            case Jason.decode(output) do
-              {:ok, %{"format" => %{"duration" => duration}}} ->
-                floor(String.to_float(duration) * 1000)
-
-              _ ->
-                0
-            end
-
-          _ ->
-            0
-        end
-
-      _ ->
-        0
+        {:noreply,
+         socket
+         |> put_flash(:info, "Processing #{length(files)} files...")
+         |> redirect(to: ~p"/library")}
     end
   end
 
