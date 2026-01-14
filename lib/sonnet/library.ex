@@ -250,4 +250,19 @@ defmodule Sonnet.Library do
         {:error, changeset}
     end
   end
+
+  def delete_book(id) do
+    {count, _} =
+      from(b in Book, where: b.id == ^id)
+      |> Repo.delete_all()
+
+    case count do
+      0 ->
+        {:error, :not_found}
+
+      1 ->
+        broadcast_books_updated()
+        {:ok, nil}
+    end
+  end
 end

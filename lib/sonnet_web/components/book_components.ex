@@ -49,6 +49,16 @@ defmodule SonnetWeb.BookComponents do
             <.icon name="hero-pencil" class="w-8 h-8" />
           </.link>
           <button
+            type="button"
+            phx-click="delete_book"
+            phx-value-id={@book.id}
+            data-confirm="Are you sure you want to delete this book? This action cannot be undone."
+            class="text-red-400 hover:text-red-300 opacity-0 transition-opacity [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-[:focus-visible]:opacity-100 focus:outline-none"
+            title="Delete Book"
+          >
+            <.icon name="hero-trash" class="w-8 h-8" />
+          </button>
+          <button
             :if={!@book.is_completed}
             type="button"
             phx-click="mark_complete"

@@ -148,6 +148,24 @@ defmodule SonnetWeb.LibraryLive do
   end
 
   @impl true
+  def handle_event("delete_book", %{"id" => id}, socket) do
+    book_id = String.to_integer(id)
+
+    case Library.delete_book(book_id) do
+      {:ok, _book} ->
+        socket =
+          socket
+          |> put_flash(:info, "Book deleted successfully")
+          |> stream_delete(:books, %{id: book_id})
+
+        {:noreply, socket}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to delete book")}
+    end
+  end
+
+  @impl true
   def handle_event("validate_edit", %{"book" => book_params}, socket) do
     changeset =
       socket.assigns.editing_book
