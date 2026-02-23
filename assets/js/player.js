@@ -28,7 +28,8 @@ import { AudioEngine } from "./audio-engine.js";
  * @property {boolean} isPlaying - Toggle state for playback
  * @property {boolean} isPending - Guard during async loads
  * @property {boolean} isDragging - Guard for seek bar updates
- * @property {number} sleepRemaining - Seconds remaining until pause
+ * @property {number} sleepTarget - Target accumulated time in seconds
+ * @property {number} sleepAccumulated - Accumulated time in seconds since sleep set
  * @property {number} lastSync - Timestamp of last API sync
  * @property {number} lastPosition - Cached audio currentTime
  * @property {number} lastManualSeek - Timestamp of last user seek
@@ -58,7 +59,8 @@ class AudioPlayer {
       isPlaying: false,
       isPending: false,
       isDragging: false,
-      sleepRemaining: 0,
+      sleepTarget: 0,
+      sleepAccumulated: 0,
       lastSync: 0,
       lastPosition: 0,
       lastManualSeek: 0,
@@ -421,7 +423,15 @@ class AudioPlayer {
       0,
       Math.min(this.engine.currentTime + s, this.engine.duration),
     );
-    this.updateSleepTimer(this.engine.currentTime - oldTime);
+    const seekDelta = this.engine.currentTime - oldTime;
+    if (seekDelta > 0 && this.state.sleepTarget > 0) {
+      this.state.sleepAccumulated += seekDelta;
+      this.updateSleepDisplay();
+      if (this.state.sleepAccumulated >= this.state.sleepTarget) {
+        this.pause();
+        this.clearSleep();
+      }
+    }
     this.recordSeek();
   }
 
@@ -432,7 +442,15 @@ class AudioPlayer {
       0,
       Math.min(seconds, this.engine.duration),
     );
-    this.updateSleepTimer(this.engine.currentTime - oldTime);
+    const seekDelta = this.engine.currentTime - oldTime;
+    if (seekDelta > 0 && this.state.sleepTarget > 0) {
+      this.state.sleepAccumulated += seekDelta;
+      this.updateSleepDisplay();
+      if (this.state.sleepAccumulated >= this.state.sleepTarget) {
+        this.pause();
+        this.clearSleep();
+      }
+    }
     this.recordSeek();
     this.save();
   }
@@ -468,12 +486,13 @@ class AudioPlayer {
   }
 
   updateSleepTimer(delta) {
-    if (this.state.sleepRemaining <= 0 || delta <= 0) return;
+    if (this.state.sleepTarget <= 0 || !this.state.isPlaying || delta <= 0)
+      return;
 
-    this.state.sleepRemaining = Math.max(0, this.state.sleepRemaining - delta);
+    this.state.sleepAccumulated += delta;
     this.updateSleepDisplay();
 
-    if (this.state.sleepRemaining <= 0) {
+    if (this.state.sleepAccumulated >= this.state.sleepTarget) {
       this.pause();
       this.clearSleep();
     }
@@ -602,16 +621,16 @@ class AudioPlayer {
 
   setSleep(minutes) {
     this.clearSleep();
-    let remaining;
+    let target;
 
     if (minutes === "end-of-chapter") {
-      remaining =
-        this.state.chapter.duration_ms / 1000 - this.engine.currentTime;
+      target = this.state.chapter.duration_ms / 1000 - this.engine.currentTime;
     } else {
-      remaining = parseInt(minutes) * 60;
+      target = parseInt(minutes) * 60;
     }
 
-    this.state.sleepRemaining = Math.max(0, remaining);
+    this.state.sleepTarget = Math.max(0, target);
+    this.state.sleepAccumulated = 0;
     this.updateSleepDisplay();
     this.el["cancel-sleep-timer"]?.classList.remove("hidden");
     this.closeAccordions();
@@ -619,7 +638,11 @@ class AudioPlayer {
 
   updateSleepDisplay() {
     if (!this.el["sleep-timer-text"]) return;
-    const s = Math.ceil(this.state.sleepRemaining);
+    const remaining = Math.max(
+      0,
+      this.state.sleepTarget - this.state.sleepAccumulated,
+    );
+    const s = Math.ceil(remaining);
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     const text = h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m` : `${s}s`;
@@ -627,7 +650,8 @@ class AudioPlayer {
   }
 
   clearSleep() {
-    this.state.sleepRemaining = 0;
+    this.state.sleepTarget = 0;
+    this.state.sleepAccumulated = 0;
     if (this.el["sleep-timer-text"])
       this.el["sleep-timer-text"].textContent = "Sleep Timer";
     this.el["cancel-sleep-timer"]?.classList.add("hidden");
