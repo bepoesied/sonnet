@@ -562,6 +562,8 @@ class AudioPlayer {
     if (next) {
       this.updateChapter(next);
 
+      this.cacheCurrentAndNext();
+
       const future = this.getNextChapter();
       if (future) {
         this.engine.preloadNext(future.audio_url);
