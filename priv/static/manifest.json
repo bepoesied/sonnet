@@ -1,0 +1,17 @@
+{
+  "name": "Sonnet",
+  "short_name": "Sonnet",
+  "description": "Sonnet",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/images/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
