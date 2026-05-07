@@ -15,6 +15,7 @@ in
     pkgs.hut
     pkgs-unstable.opencode
     pkgs.ffmpeg
+    pkgs.awscli2
   ];
 
   languages.nix.enable = true;
@@ -46,13 +47,37 @@ in
     '';
   };
 
-  services.minio = {
+  services.garage = {
     enable = true;
-    accessKey = "minioadmin";
     buckets = [ "sonnet-dev" ];
     region = "us-east-1";
-    secretKey = "minioadmin";
-    listenAddress = "127.0.0.1:9000";
+    afterStart = ''
+      export AWS_ACCESS_KEY_ID=GKdevaccesskey001
+      export AWS_SECRET_ACCESS_KEY=dev-secret-key-abc123
+      export AWS_DEFAULT_REGION=us-east-1
+
+      garage key import $AWS_ACCESS_KEY_ID $AWS_SECRET_ACCESS_KEY
+      garage bucket allow --key $AWS_ACCESS_KEY_ID --read --write sonnet-dev
+
+      cat > /tmp/sonnet-dev-cors.json <<'EOF'
+      {
+        "CORSRules": [
+          {
+            "AllowedHeaders": ["*"],
+            "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+            "AllowedOrigins": ["*"],
+            "ExposeHeaders": ["ETag"],
+            "MaxAgeSeconds": 3000
+          }
+        ]
+      }
+      EOF
+
+      aws --endpoint-url http://127.0.0.1:3900 \
+        s3api put-bucket-cors \
+        --bucket sonnet-dev \
+        --cors-configuration file:///tmp/sonnet-dev-cors.json
+    '';
   };
 
   services.keycloak = {

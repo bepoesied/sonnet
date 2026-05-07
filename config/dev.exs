@@ -1,8 +1,8 @@
 import Config
 
 config :ex_aws,
-  access_key_id: "minioadmin",
-  secret_access_key: "minioadmin"
+  access_key_id: "GKdevaccesskey001",
+  secret_access_key: "dev-secret-key-abc123"
 
 config :sonnet,
   ingest_bucket: "sonnet-dev",
@@ -12,7 +12,7 @@ config :ex_aws, :s3,
   host: "localhost",
   scheme: "http://",
   region: "us-east-1",
-  port: 9000
+  port: 3900
 
 config :ueberauth_oidcc, :issuers, [
   %{
