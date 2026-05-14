@@ -127,28 +127,43 @@ defmodule Sonnet.Workers.Ingester do
     end
   end
 
-  defp segment_by_duration(original_path, _num_chapters, extension) do
+  defp segment_by_duration(original_path, extension) do
     output_dir = Briefly.create!(type: :directory)
+    output_pattern = Path.join(output_dir, "segment_%03d#{extension}")
 
-    case System.cmd("ffmpeg", [
-           "-i",
-           original_path,
-           "-map",
-           "0:a",
-           "-c",
-           "copy",
-           "-f",
-           "segment",
-           "-segment_time",
-           Integer.to_string(@segment_duration_seconds),
-           "-segment_list",
-           "/dev/null",
-           Path.join(output_dir, "segment_%03d#{extension}")
-         ]) do
-      {_, 0} ->
+    args = [
+      "-i",
+      original_path,
+      "-map",
+      "0:a:0",
+      "-vn",
+      "-c",
+      "copy",
+      "-f",
+      "segment",
+      "-segment_time",
+      Integer.to_string(@segment_duration_seconds),
+      "-segment_list",
+      "/dev/null",
+      "-reset_timestamps",
+      "1",
+      "-fflags",
+      "+genpts",
+      "-avoid_negative_ts",
+      "make_zero",
+      "-movflags",
+      "+faststart",
+      "-y",
+      output_pattern
+    ]
+
+    case System.cmd("ffmpeg", args, stderr_to_stdout: true) do
+      {output, 0} ->
         segments =
-          File.ls!(output_dir)
+          output_dir
+          |> File.ls!()
           |> Enum.sort()
+          |> Enum.filter(&String.ends_with?(&1, extension))
           |> Enum.map(fn filename ->
             %{
               path: Path.join(output_dir, filename),
@@ -156,10 +171,14 @@ defmodule Sonnet.Workers.Ingester do
             }
           end)
 
-        {:ok, segments}
+        if segments == [] do
+          {:error, {:no_segments_created, output}}
+        else
+          {:ok, segments}
+        end
 
-      {_, exit_code} ->
-        {:error, {:segmentation_failed, exit_code}}
+      {output, exit_code} ->
+        {:error, {:segmentation_failed, exit_code, output}}
     end
   end
 
@@ -170,32 +189,42 @@ defmodule Sonnet.Workers.Ingester do
       chapters_metadata
       |> Enum.with_index()
       |> Enum.map(fn {chapter_meta, index} ->
-        start_time = Float.floor(String.to_float(chapter_meta["start_time"]), 3)
-        end_time = Float.ceil(String.to_float(chapter_meta["end_time"]), 3)
-        duration = Float.ceil(end_time - start_time, 3)
+        start_time = String.to_float(chapter_meta["start_time"])
+        end_time = String.to_float(chapter_meta["end_time"])
+        duration = max(end_time - start_time, 0.001)
+
+        start_s = :erlang.float_to_binary(start_time, decimals: 3)
+        dur_s = :erlang.float_to_binary(duration, decimals: 3)
 
         title = Map.get(chapter_meta["tags"] || %{}, "title", "Chapter #{index + 1}")
         output_path = Path.join(output_dir, "chapter_#{index + 1}#{extension}")
 
         case System.cmd("ffmpeg", [
-               "-ss",
-               Float.to_string(start_time),
                "-i",
                original_path,
+               "-ss",
+               start_s,
                "-t",
-               Float.to_string(duration),
+               dur_s,
                "-map",
-               "0:a",
+               "0:a:0",
+               "-vn",
                "-c",
                "copy",
+               "-fflags",
+               "+genpts",
+               "-avoid_negative_ts",
+               "make_zero",
+               "-movflags",
+               "+faststart",
                "-y",
                output_path
              ]) do
           {_, 0} ->
             {:ok, %{path: output_path, title: title}}
 
-          {_, exit_code} ->
-            {:error, {:segment_failed, index, exit_code}}
+          {stderr_or_stdout, exit_code} ->
+            {:error, {:segment_failed, index, exit_code, stderr_or_stdout}}
         end
       end)
       |> Enum.filter(fn
