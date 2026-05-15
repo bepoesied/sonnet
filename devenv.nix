@@ -6,6 +6,8 @@
 }:
 let
   pkgs-unstable = import inputs.nixpkgs-unstable { system = pkgs.stdenv.system; };
+  garageNginxPort = 3900;
+  garageS3UpstreamPort = 3904;
 in
 {
   packages = [
@@ -15,7 +17,6 @@ in
     pkgs.hut
     pkgs-unstable.opencode
     pkgs.ffmpeg
-    pkgs.awscli2
   ];
 
   languages.nix.enable = true;
@@ -51,32 +52,48 @@ in
     enable = true;
     buckets = [ "sonnet-dev" ];
     region = "us-east-1";
+    s3Address = "127.0.0.1:${toString garageS3UpstreamPort}";
     afterStart = ''
-      export AWS_ACCESS_KEY_ID=GKdevaccesskey001
-      export AWS_SECRET_ACCESS_KEY=dev-secret-key-abc123
-      export AWS_DEFAULT_REGION=us-east-1
+      garage key import GKdevaccesskey001 dev-secret-key-abc123
+      garage bucket allow --key GKdevaccesskey001 --read --write sonnet-dev
+    '';
+  };
 
-      garage key import $AWS_ACCESS_KEY_ID $AWS_SECRET_ACCESS_KEY
-      garage bucket allow --key $AWS_ACCESS_KEY_ID --read --write sonnet-dev
+  services.nginx = {
+    enable = true;
+    httpConfig = ''
+      server {
+        listen 127.0.0.1:${toString garageNginxPort};
+        server_name garage.localhost;
+        client_max_body_size 0;
 
-      cat > /tmp/sonnet-dev-cors.json <<'EOF'
-      {
-        "CORSRules": [
-          {
-            "AllowedHeaders": ["*"],
-            "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-            "AllowedOrigins": ["*"],
-            "ExposeHeaders": ["ETag"],
-            "MaxAgeSeconds": 3000
+        location / {
+          if ($request_method = OPTIONS) {
+            add_header Access-Control-Allow-Origin "*" always;
+            add_header Access-Control-Allow-Methods "GET, PUT, POST, DELETE, HEAD, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "*" always;
+            add_header Access-Control-Expose-Headers "ETag, x-amz-request-id, x-amz-id-2, x-amz-version-id, Content-Length, Content-Range, Content-Type" always;
+            add_header Access-Control-Max-Age 86400 always;
+            add_header Content-Length 0;
+            add_header Content-Type text/plain;
+            return 204;
           }
-        ]
-      }
-      EOF
 
-      aws --endpoint-url http://127.0.0.1:3900 \
-        s3api put-bucket-cors \
-        --bucket sonnet-dev \
-        --cors-configuration file:///tmp/sonnet-dev-cors.json
+          add_header Access-Control-Allow-Origin "*" always;
+          add_header Access-Control-Allow-Methods "GET, PUT, POST, DELETE, HEAD, OPTIONS" always;
+          add_header Access-Control-Allow-Headers "*" always;
+          add_header Access-Control-Expose-Headers "ETag, x-amz-request-id, x-amz-id-2, x-amz-version-id, Content-Length, Content-Range, Content-Type" always;
+
+          proxy_http_version 1.1;
+          proxy_buffering off;
+          proxy_request_buffering off;
+          proxy_set_header Host $http_host;
+          proxy_set_header Connection "";
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_pass http://127.0.0.1:${toString config.processes.garage.ports.s3.value};
+        }
+      }
     '';
   };
 
