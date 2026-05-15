@@ -69,36 +69,14 @@ defmodule Sonnet.Workers.MultiIngester do
   end
 
   defp probe_audio_duration(s3_key) do
-    path = Briefly.create!(type: :path)
-
-    case Sonnet.Storage.download_file(s3_key, path) do
-      {:ok, _} ->
-        case System.cmd("ffprobe", [
-               "-v",
-               "quiet",
-               "-print_format",
-               "json",
-               "-show_format",
-               path
-             ]) do
-          {output, 0} ->
-            case Jason.decode(output) do
-              {:ok, %{"format" => %{"duration" => duration}}} ->
-                {:ok, floor(String.to_float(duration) * 1000), path}
-
-              {:error, reason} ->
-                {:error, {:json_decode_failed, reason}}
-
-              _ ->
-                {:error, :invalid_probe_output}
-            end
-
-          {_, exit_code} ->
-            {:error, {:ffprobe_failed, exit_code}}
-        end
-
-      {:error, reason} ->
-        {:error, {:download_failed, reason}}
+    with {:ok, path} <- Sonnet.Media.download_to_temp(s3_key),
+         {:ok, probe} <- Sonnet.Media.probe_file(path, false) do
+      case Sonnet.Media.duration_ms_from_probe(probe) do
+        0 -> {:error, :invalid_probe_output}
+        duration_ms -> {:ok, duration_ms, path}
+      end
+    else
+      {:error, reason} -> {:error, reason}
     end
   end
 

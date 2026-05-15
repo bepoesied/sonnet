@@ -110,7 +110,7 @@ defmodule SonnetWeb.BookLive.Ingest do
         accept: ~w(.m4b .m4a),
         max_entries: 1,
         max_file_size: 5_000_000_000,
-        external: &presign_upload/2
+        external: &Sonnet.Ingestion.presign_upload/2
       )
       |> assign(
         :form,
@@ -136,11 +136,7 @@ defmodule SonnetWeb.BookLive.Ingest do
       |> Enum.map(&String.trim/1)
       |> Enum.reject(&(&1 == ""))
 
-    for key <- keys do
-      %{s3_key: key, original_filename: Path.basename(key)}
-      |> Sonnet.Workers.Ingester.new()
-      |> Oban.insert()
-    end
+    Sonnet.Ingestion.enqueue_bulk_keys(keys)
 
     socket =
       socket
@@ -160,26 +156,17 @@ defmodule SonnetWeb.BookLive.Ingest do
       end)
 
     {:ok, _} =
-      %{
-        s3_key: uploaded_file.key,
-        original_filename: uploaded_file.client_name,
-        book_metadata: book_params
-      }
-      |> Sonnet.Workers.Ingester.new()
-      |> Oban.insert()
+      Sonnet.Ingestion.enqueue_single_file(
+        uploaded_file.key,
+        uploaded_file.client_name,
+        book_params
+      )
 
     socket =
       socket
       |> put_flash(:info, "Successfully uploaded #{uploaded_file.client_name}")
 
     {:noreply, socket}
-  end
-
-  defp presign_upload(entry, socket) do
-    key = Ecto.UUID.generate()
-    url = Sonnet.Storage.presigned_put_url(key, 3600, [{"Content-Type", entry.client_type}])
-
-    {:ok, %{uploader: "S3", key: key, url: url}, socket}
   end
 
   defp at_least_onefile_selected?(upload) do

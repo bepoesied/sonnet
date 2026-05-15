@@ -74,7 +74,7 @@ defmodule SonnetWeb.BookLive.MultiIngest do
         accept: ~w(.mp3),
         max_entries: 500,
         max_file_size: 5_000_000_000,
-        external: &presign_upload/2
+        external: &Sonnet.Ingestion.presign_upload/2
       )
       |> assign(
         :form,
@@ -103,28 +103,13 @@ defmodule SonnetWeb.BookLive.MultiIngest do
         {:noreply, put_flash(socket, :error, "Please select at least one file")}
 
       files ->
-        s3_keys = Enum.map(files, & &1.key)
-        original_filenames = Enum.map(files, & &1.client_name)
-
-        Sonnet.Workers.MultiIngester.new(%{
-          s3_keys: s3_keys,
-          original_filenames: original_filenames,
-          book_metadata: book_params
-        })
-        |> Oban.insert()
+        Sonnet.Ingestion.enqueue_multi_file(files, book_params)
 
         {:noreply,
          socket
          |> put_flash(:info, "Processing #{length(files)} files...")
          |> redirect(to: ~p"/library")}
     end
-  end
-
-  defp presign_upload(entry, socket) do
-    key = Ecto.UUID.generate()
-    url = Sonnet.Storage.presigned_put_url(key, 3600, [{"Content-Type", entry.client_type}])
-
-    {:ok, %{uploader: "S3", key: key, url: url}, socket}
   end
 
   defp at_least_onefile_selected?(upload) do

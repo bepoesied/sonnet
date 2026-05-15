@@ -187,7 +187,7 @@ defmodule SonnetWeb.LibraryLive do
 
     cover_s3_key =
       consume_uploaded_entries(socket, :cover, fn %{path: path}, entry ->
-        cover_s3_key = process_cover_upload(path, entry)
+        cover_s3_key = Sonnet.Media.process_cover_upload(path, entry.client_name)
         {:ok, cover_s3_key}
       end)
       |> case do
@@ -220,63 +220,6 @@ defmodule SonnetWeb.LibraryLive do
   def handle_info(:books_updated, socket) do
     user_id = socket.assigns.current_scope.user.id
     {:noreply, stream(socket, :books, Library.list_books(user_id), reset: true)}
-  end
-
-  defp process_cover_upload(path, entry) do
-    temp_path = Briefly.create!(type: :path, extname: Path.extname(entry.client_name))
-
-    File.cp!(path, temp_path)
-
-    jpg_path = convert_to_jpg(temp_path)
-
-    hash = calculate_cover_hash(jpg_path)
-    s3_key = upload_cover_to_s3(jpg_path, hash)
-
-    File.rm!(temp_path)
-    File.rm!(jpg_path)
-
-    s3_key
-  end
-
-  defp convert_to_jpg(input_path) do
-    output_path = Briefly.create!(type: :path, extname: ".jpg")
-
-    case System.cmd("ffmpeg", [
-           "-i",
-           input_path,
-           "-vf",
-           "scale='min(800,iw)':-2",
-           "-q:v",
-           "85",
-           "-f",
-           "image2",
-           output_path,
-           "-y"
-         ]) do
-      {_, 0} ->
-        if File.exists?(output_path) and File.stat!(output_path).size > 0 do
-          output_path
-        else
-          raise "Failed to convert cover to JPG"
-        end
-
-      {error, _} ->
-        raise "FFmpeg error: #{error}"
-    end
-  end
-
-  defp calculate_cover_hash(path) do
-    File.stream!(path)
-    |> Enum.reduce(:crypto.hash_init(:sha256), fn chunk, acc ->
-      :crypto.hash_update(acc, chunk)
-    end)
-    |> :crypto.hash_final()
-    |> Base.encode16(case: :lower)
-  end
-
-  defp upload_cover_to_s3(path, hash) do
-    key = Path.join(["covers", "#{hash}.jpg"])
-    Sonnet.Storage.upload_file!(path, key)
   end
 
   defp progress_or_first_chapter_id(user_id, book) do
