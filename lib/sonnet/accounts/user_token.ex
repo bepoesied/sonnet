@@ -5,7 +5,6 @@ defmodule Sonnet.Accounts.UserToken do
 
   @rand_size 32
   @session_validity_in_days 14
-  @exchange_validity_in_minutes 5
   @refresh_validity_in_days 30
 
   schema "users_tokens" do
@@ -87,35 +86,6 @@ defmodule Sonnet.Accounts.UserToken do
         join: user in assoc(token, :user),
         where: token.inserted_at > ago(@session_validity_in_days, "day"),
         select: {%{user | authenticated_at: token.authenticated_at}, token.inserted_at}
-
-    {:ok, query}
-  end
-
-  @doc """
-  Generates an exchange code for token-based authentication flow.
-
-  Exchange codes are single-use tokens that can be exchanged for
-  access and refresh tokens. They expire quickly for security.
-  """
-  def build_exchange_token(user) do
-    token = :crypto.strong_rand_bytes(@rand_size)
-    {token, %UserToken{token: token, context: "exchange", user_id: user.id}}
-  end
-
-  @doc """
-  Checks if the exchange code is valid and returns its underlying lookup query.
-
-  The query returns the user found by the token, if any, along with the token itself.
-
-  The token is valid if it matches the value in the database and it has
-  not expired (after @exchange_validity_in_minutes).
-  """
-  def verify_exchange_token_query(token) do
-    query =
-      from token in by_token_and_context_query(token, "exchange"),
-        join: user in assoc(token, :user),
-        where: token.inserted_at > ago(@exchange_validity_in_minutes, "minute"),
-        select: {user, token}
 
     {:ok, query}
   end

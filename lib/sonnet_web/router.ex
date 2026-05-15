@@ -88,7 +88,6 @@ defmodule SonnetWeb.Router do
   scope "/", SonnetWeb do
     pipe_through [:api]
 
-    post "/users/token-exchange", UserSessionController, :create
     post "/users/token-refresh", UserSessionController, :refresh
     post "/users/logout", UserSessionController, :delete
   end

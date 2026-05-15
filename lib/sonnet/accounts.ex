@@ -90,15 +90,6 @@ defmodule Sonnet.Accounts do
   end
 
   @doc """
-  Generates an exchange code for token-based authentication.
-  """
-  def generate_user_exchange_token(user) do
-    {token, exchange_token} = UserToken.build_exchange_token(user)
-    Repo.insert!(exchange_token)
-    token
-  end
-
-  @doc """
   Gets the user with the given access token.
 
   If the token is valid `{user, token_inserted_at}` is returned, otherwise `nil` is returned.
@@ -119,16 +110,6 @@ defmodule Sonnet.Accounts do
   end
 
   @doc """
-  Gets the user and exchange token with the given exchange code.
-
-  If the code is valid `{user, exchange_token}` is returned, otherwise `nil` is returned.
-  """
-  def get_user_by_exchange_code(token) do
-    {:ok, query} = UserToken.verify_exchange_token_query(token)
-    Repo.one(query)
-  end
-
-  @doc """
   Deletes the access token with the given token.
   """
   def delete_user_session_token(token) do
@@ -141,14 +122,6 @@ defmodule Sonnet.Accounts do
   """
   def delete_user_refresh_token(token) do
     Repo.delete_all(from(UserToken, where: [token: ^token, context: "refresh"]))
-    :ok
-  end
-
-  @doc """
-  Deletes the exchange code with the given token.
-  """
-  def delete_exchange_code(token) do
-    Repo.delete_all(from(UserToken, where: [token: ^token, context: "exchange"]))
     :ok
   end
 end
