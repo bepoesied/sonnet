@@ -2,27 +2,13 @@ defmodule SonnetWeb.API.BookController do
   use SonnetWeb, :controller
 
   alias Sonnet.Library
+  alias SonnetWeb.BookSerializer
 
   def index(conn, _params) do
     user = conn.assigns.current_scope.user
     books = Library.list_books(user.id)
 
-    books_json =
-      Enum.map(books, fn book ->
-        %{
-          id: book.id,
-          title: book.title,
-          author: book.author,
-          narrator: book.narrator,
-          description: book.description,
-          cover_url:
-            if(book.cover_s3_key,
-              do: Library.presigned_url(book.cover_s3_key),
-              else: nil
-            ),
-          is_completed: book.is_completed
-        }
-      end)
+    books_json = Enum.map(books, &BookSerializer.api_summary/1)
 
     json(conn, books_json)
   end
@@ -44,26 +30,7 @@ defmodule SonnetWeb.API.BookController do
 
     with {:ok, book_id} <- parse_id(book_id),
          book when not is_nil(book) <- Library.get_book(book_id) do
-      progress = Library.get_listen_progress(user.id, book.id)
-
-      data =
-        if progress do
-          %{
-            chapter_id: progress.chapter_id,
-            offset_ms: progress.offset_ms,
-            updated_at: progress.updated_at,
-            is_completed: progress.is_completed
-          }
-        else
-          %{
-            chapter_id: nil,
-            offset_ms: 0,
-            updated_at: nil,
-            is_completed: false
-          }
-        end
-
-      json(conn, data)
+      json(conn, BookSerializer.progress(Library.get_listen_progress(user.id, book.id)))
     else
       :error -> error(conn, :bad_request, "Invalid book ID")
       nil -> error(conn, :not_found, "Book not found")
@@ -149,33 +116,7 @@ defmodule SonnetWeb.API.BookController do
   end
 
   defp render_book(conn, book) do
-    chapters_json =
-      Enum.map(book.chapters, fn chapter ->
-        %{
-          id: chapter.id,
-          title: chapter.title,
-          position: chapter.position,
-          start_ms: chapter.start_ms,
-          end_ms: chapter.end_ms,
-          duration_ms: chapter.duration_ms,
-          media_asset_id: chapter.media_asset_id
-        }
-      end)
-
-    json(conn, %{
-      id: book.id,
-      title: book.title,
-      author: book.author,
-      narrator: book.narrator,
-      description: book.description,
-      cover_url:
-        if(book.cover_s3_key,
-          do: Library.presigned_url(book.cover_s3_key),
-          else: nil
-        ),
-      chapters: chapters_json,
-      is_completed: book.is_completed
-    })
+    json(conn, BookSerializer.api_detail(book))
   end
 
   defp completion_chapter_id(book, params) do
