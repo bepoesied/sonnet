@@ -19,7 +19,7 @@ defmodule SonnetWeb.UserLive.Settings do
           <div>
             <h1 class="text-4xl font-bold tracking-tight">Account Settings</h1>
             <p class="text-base-content/70 mt-1">
-              Manage your account email address and password settings
+              Review the current authentication session for your Sonnet account
             </p>
           </div>
         </div>

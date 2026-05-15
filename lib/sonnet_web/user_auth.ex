@@ -101,7 +101,7 @@ defmodule SonnetWeb.UserAuth do
   # Only applies to cookie-based authentication (from_cookie? == true).
   defp maybe_reissue_user_session_token(conn, user, token_inserted_at, from_cookie?) do
     if from_cookie? do
-      token_age = DateTime.diff(DateTime.utc_now(:second), token_inserted_at, :day)
+      token_age = DateTime.diff(DateTime.utc_now(), token_inserted_at, :day)
 
       if token_age >= @session_reissue_age_in_days do
         create_or_extend_session(conn, user, %{})
