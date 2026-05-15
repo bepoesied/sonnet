@@ -39,8 +39,8 @@ defmodule SonnetWeb.Layouts do
       <div class="navbar-start">
         <div>
           <.link navigate={~p"/"} class="flex items-center gap-2 group">
-            <div class="bg-primary text-primary-content p-1.5 rounded-lg group-hover:scale-110 transition-transform">
-              <.icon name="hero-musical-note" class="size-6" />
+            <div class="bg-primary p-1.5 rounded-lg group-hover:scale-110 transition-transform">
+              <img src={~p"/images/logo.png"} alt="Sonnet logo" class="size-6 object-contain" />
             </div>
             <span class="text-xl font-bold tracking-tight">Sonnet</span>
           </.link>
@@ -79,7 +79,7 @@ defmodule SonnetWeb.Layouts do
               <li>
                 <button
                   id="clear-cache"
-                  onclick="clearServiceWorkerCache(); document.activeElement.blur()"
+                  phx-click={JS.dispatch("sonnet:clear-cache")}
                 >
                   <.icon name="hero-trash" class="size-4" /> Clear Cache
                 </button>
@@ -182,27 +182,24 @@ defmodule SonnetWeb.Layouts do
       >
         <li>
           <button
-            phx-click={JS.dispatch("phx:set-theme")}
+            phx-click={JS.dispatch("phx:set-theme") |> JS.dispatch("sonnet:close-menu")}
             data-phx-theme="light"
-            onclick="document.activeElement.blur()"
           >
             <.icon name="hero-sun-micro" class="size-4" /> Light
           </button>
         </li>
         <li>
           <button
-            phx-click={JS.dispatch("phx:set-theme")}
+            phx-click={JS.dispatch("phx:set-theme") |> JS.dispatch("sonnet:close-menu")}
             data-phx-theme="dark"
-            onclick="document.activeElement.blur()"
           >
             <.icon name="hero-moon-micro" class="size-4" /> Dark
           </button>
         </li>
         <li>
           <button
-            phx-click={JS.dispatch("phx:set-theme")}
+            phx-click={JS.dispatch("phx:set-theme") |> JS.dispatch("sonnet:close-menu")}
             data-phx-theme="system"
-            onclick="document.activeElement.blur()"
           >
             <.icon name="hero-computer-desktop-micro" class="size-4" /> System
           </button>
