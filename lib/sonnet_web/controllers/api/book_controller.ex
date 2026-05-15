@@ -44,7 +44,9 @@ defmodule SonnetWeb.API.BookController do
          book when not is_nil(book) <- Library.get_book(book_id),
          {:ok, chapter_id} <- parse_required_int(Map.get(params, "chapter_id")),
          {:ok, offset_ms} <- parse_non_negative_int(Map.get(params, "offset_ms", 0)),
-         {:ok, _progress} <- Library.save_listen_progress(user.id, book.id, chapter_id, offset_ms) do
+         {:ok, updated_at} <- parse_optional_datetime(Map.get(params, "updated_at")),
+         {:ok, _progress} <-
+           Library.save_listen_progress(user.id, book.id, chapter_id, offset_ms, nil, updated_at) do
       send_resp(conn, :no_content, "")
     else
       :error ->
@@ -54,6 +56,9 @@ defmodule SonnetWeb.API.BookController do
         error(conn, :not_found, "Book not found")
 
       {:error, :invalid_integer} ->
+        error(conn, :unprocessable_entity, "Invalid progress payload")
+
+      {:error, :invalid_datetime} ->
         error(conn, :unprocessable_entity, "Invalid progress payload")
 
       {:error, :chapter_not_found} ->
@@ -162,6 +167,17 @@ defmodule SonnetWeb.API.BookController do
   end
 
   defp parse_required_int(_value), do: {:error, :invalid_integer}
+
+  defp parse_optional_datetime(nil), do: {:ok, nil}
+
+  defp parse_optional_datetime(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, datetime, _offset} -> {:ok, datetime}
+      {:error, _reason} -> {:error, :invalid_datetime}
+    end
+  end
+
+  defp parse_optional_datetime(_value), do: {:error, :invalid_datetime}
 
   defp error(conn, status, message) do
     conn

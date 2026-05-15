@@ -185,6 +185,109 @@ defmodule SonnetWeb.API.BookControllerTest do
                Library.get_listen_progress(user.id, book.id)
     end
 
+    test "newer client progress overwrites existing progress", %{conn: conn} do
+      user = user_fixture()
+      token = Accounts.generate_user_session_token(user)
+      {book, chapter} = book_with_chapter_fixture("Newer Offline Progress Book")
+      older_at = ~U[2026-01-01 00:00:00Z]
+      newer_at = ~U[2026-01-01 00:05:00Z]
+
+      assert {:ok, _progress} =
+               Library.save_listen_progress(user.id, book.id, chapter.id, 100, nil, older_at)
+
+      conn =
+        conn
+        |> authenticated_conn(token)
+        |> put(~p"/api/books/#{book.id}/progress", %{
+          chapter_id: chapter.id,
+          offset_ms: 500,
+          updated_at: DateTime.to_iso8601(newer_at)
+        })
+
+      assert response(conn, 204) == ""
+
+      assert %ListenProgress{offset_ms: 500, updated_at: ^newer_at, is_completed: false} =
+               Library.get_listen_progress(user.id, book.id)
+    end
+
+    test "older client progress does not overwrite newer existing progress", %{conn: conn} do
+      user = user_fixture()
+      token = Accounts.generate_user_session_token(user)
+      {book, chapter} = book_with_chapter_fixture("Older Offline Progress Book")
+      older_at = ~U[2026-01-01 00:00:00Z]
+      newer_at = ~U[2026-01-01 00:05:00Z]
+
+      assert {:ok, _progress} =
+               Library.save_listen_progress(user.id, book.id, chapter.id, 500, nil, newer_at)
+
+      conn =
+        conn
+        |> authenticated_conn(token)
+        |> put(~p"/api/books/#{book.id}/progress", %{
+          chapter_id: chapter.id,
+          offset_ms: 100,
+          updated_at: DateTime.to_iso8601(older_at)
+        })
+
+      assert response(conn, 204) == ""
+
+      assert %ListenProgress{offset_ms: 500, updated_at: ^newer_at, is_completed: false} =
+               Library.get_listen_progress(user.id, book.id)
+    end
+
+    test "replaying the same final progress is idempotent", %{conn: conn} do
+      user = user_fixture()
+      token = Accounts.generate_user_session_token(user)
+      {book, chapter} = book_with_chapter_fixture("Idempotent Offline Progress Book")
+      updated_at = ~U[2026-01-01 00:00:00Z]
+
+      payload = %{
+        chapter_id: chapter.id,
+        offset_ms: 250,
+        updated_at: DateTime.to_iso8601(updated_at)
+      }
+
+      first_conn =
+        conn
+        |> authenticated_conn(token)
+        |> put(~p"/api/books/#{book.id}/progress", payload)
+
+      second_conn =
+        build_conn()
+        |> authenticated_conn(token)
+        |> put(~p"/api/books/#{book.id}/progress", payload)
+
+      assert response(first_conn, 204) == ""
+      assert response(second_conn, 204) == ""
+      assert Repo.aggregate(ListenProgress, :count) == 1
+
+      assert %ListenProgress{offset_ms: 250, updated_at: ^updated_at, is_completed: false} =
+               Library.get_listen_progress(user.id, book.id)
+    end
+
+    test "older queued progress after completion preserves completed state", %{conn: conn} do
+      user = user_fixture()
+      token = Accounts.generate_user_session_token(user)
+      {book, chapter} = book_with_chapter_fixture("Completed Offline Progress Book")
+
+      assert {:ok, completed_progress} = Library.mark_book_complete(user.id, book.id, chapter.id)
+      older_at = DateTime.add(completed_progress.updated_at, -60, :second)
+
+      conn =
+        conn
+        |> authenticated_conn(token)
+        |> put(~p"/api/books/#{book.id}/progress", %{
+          chapter_id: chapter.id,
+          offset_ms: 500,
+          updated_at: DateTime.to_iso8601(older_at)
+        })
+
+      assert response(conn, 204) == ""
+
+      assert %ListenProgress{offset_ms: 0, is_completed: true} =
+               Library.get_listen_progress(user.id, book.id)
+    end
+
     test "returns 422 for malformed progress payloads", %{conn: conn} do
       {book, _chapter} = book_with_chapter_fixture("Payload Book")
 

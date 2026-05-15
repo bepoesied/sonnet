@@ -16,7 +16,7 @@ defmodule Sonnet.Library.ListenProgress do
   @doc false
   def changeset(listen_progress, attrs) do
     listen_progress
-    |> cast(attrs, [:offset_ms, :user_id, :book_id, :chapter_id, :is_completed])
+    |> cast(attrs, [:offset_ms, :user_id, :book_id, :chapter_id, :is_completed, :updated_at])
     |> validate_required([:offset_ms, :user_id, :book_id, :chapter_id])
     |> validate_number(:offset_ms, greater_than_or_equal_to: 0)
     |> foreign_key_constraint(:user_id)

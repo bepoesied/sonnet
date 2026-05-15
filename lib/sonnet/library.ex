@@ -214,29 +214,46 @@ defmodule Sonnet.Library do
     |> Repo.preload(chapter: [:media_asset])
   end
 
-  def save_listen_progress(user_id, book_id, chapter_id, offset_ms, is_completed \\ nil) do
+  def save_listen_progress(
+        user_id,
+        book_id,
+        chapter_id,
+        offset_ms,
+        is_completed \\ nil,
+        updated_at \\ nil
+      ) do
     if chapter_belongs_to_book?(chapter_id, book_id) do
+      updated_at = updated_at || DateTime.utc_now()
+
       attrs = %{
         user_id: user_id,
         book_id: book_id,
         chapter_id: chapter_id,
         offset_ms: offset_ms,
-        is_completed: false
+        is_completed: false,
+        updated_at: DateTime.truncate(updated_at, :second)
       }
 
       attrs =
         if is_nil(is_completed), do: attrs, else: Map.put(attrs, :is_completed, is_completed)
 
-      %ListenProgress{}
-      |> ListenProgress.changeset(attrs)
-      |> Repo.insert(
-        on_conflict: [
-          set:
-            Enum.map(attrs, fn {k, v} -> {k, v} end) ++
-              [{:updated_at, DateTime.utc_now()}]
-        ],
-        conflict_target: [:user_id, :book_id]
-      )
+      # Offline replay semantics: a client-supplied updated_at competes with the
+      # existing row timestamp, and strictly older progress is ignored.
+      case get_listen_progress(user_id, book_id) do
+        nil ->
+          %ListenProgress{}
+          |> ListenProgress.changeset(attrs)
+          |> Repo.insert()
+
+        %ListenProgress{updated_at: existing_updated_at} = progress ->
+          if DateTime.compare(attrs.updated_at, existing_updated_at) == :lt do
+            {:ok, progress}
+          else
+            progress
+            |> ListenProgress.changeset(attrs)
+            |> Repo.update()
+          end
+      end
     else
       {:error, :chapter_not_found}
     end
