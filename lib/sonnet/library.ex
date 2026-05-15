@@ -179,7 +179,7 @@ defmodule Sonnet.Library do
     Repo.all(query)
   end
 
-  def get_book_with_status!(id, user_id) do
+  def get_book_with_status(id, user_id) do
     chapters_query = from c in Chapter, order_by: c.position, preload: [:media_asset]
 
     from(b in Book,
@@ -188,13 +188,25 @@ defmodule Sonnet.Library do
       on: lp.book_id == b.id and lp.user_id == ^user_id,
       select_merge: %{is_completed: fragment("coalesce(?, false)", lp.is_completed)}
     )
-    |> Repo.one!()
-    |> Repo.preload(chapters: chapters_query)
+    |> Repo.one()
+    |> case do
+      nil -> nil
+      book -> Repo.preload(book, chapters: chapters_query)
+    end
   end
 
   def get_book!(id) do
     chapters_query = from c in Chapter, order_by: c.position, preload: [:media_asset]
     Repo.get!(Book, id) |> Repo.preload(chapters: chapters_query)
+  end
+
+  def get_book(id) do
+    chapters_query = from c in Chapter, order_by: c.position, preload: [:media_asset]
+
+    case Repo.get(Book, id) do
+      nil -> nil
+      book -> Repo.preload(book, chapters: chapters_query)
+    end
   end
 
   def get_listen_progress(user_id, book_id) do
@@ -203,26 +215,38 @@ defmodule Sonnet.Library do
   end
 
   def save_listen_progress(user_id, book_id, chapter_id, offset_ms, is_completed \\ nil) do
-    attrs = %{
-      user_id: user_id,
-      book_id: book_id,
-      chapter_id: chapter_id,
-      offset_ms: offset_ms
-    }
+    if chapter_belongs_to_book?(chapter_id, book_id) do
+      attrs = %{
+        user_id: user_id,
+        book_id: book_id,
+        chapter_id: chapter_id,
+        offset_ms: offset_ms
+      }
 
-    attrs = if is_nil(is_completed), do: attrs, else: Map.put(attrs, :is_completed, is_completed)
+      attrs =
+        if is_nil(is_completed), do: attrs, else: Map.put(attrs, :is_completed, is_completed)
 
-    %ListenProgress{}
-    |> ListenProgress.changeset(attrs)
-    |> Repo.insert(
-      on_conflict: [
-        set:
-          Enum.map(attrs, fn {k, v} -> {k, v} end) ++
-            [{:updated_at, DateTime.utc_now()}]
-      ],
-      conflict_target: [:user_id, :book_id]
-    )
+      %ListenProgress{}
+      |> ListenProgress.changeset(attrs)
+      |> Repo.insert(
+        on_conflict: [
+          set:
+            Enum.map(attrs, fn {k, v} -> {k, v} end) ++
+              [{:updated_at, DateTime.utc_now()}]
+        ],
+        conflict_target: [:user_id, :book_id]
+      )
+    else
+      {:error, :chapter_not_found}
+    end
   end
+
+  defp chapter_belongs_to_book?(chapter_id, book_id)
+       when is_integer(chapter_id) and is_integer(book_id) do
+    Repo.exists?(from c in Chapter, where: c.id == ^chapter_id and c.book_id == ^book_id)
+  end
+
+  defp chapter_belongs_to_book?(_, _), do: false
 
   def mark_book_complete(user_id, book_id, chapter_id) do
     save_listen_progress(user_id, book_id, chapter_id, 0, true)

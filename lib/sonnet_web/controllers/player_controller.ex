@@ -5,8 +5,16 @@ defmodule SonnetWeb.PlayerController do
 
   def show(conn, %{"book_id" => book_id}) do
     user = conn.assigns.current_scope.user
-    book = Library.get_book_with_status!(String.to_integer(book_id), user.id)
 
+    with {:ok, book_id} <- parse_id(book_id),
+         book when not is_nil(book) <- Library.get_book_with_status(book_id, user.id) do
+      render_player(conn, book, user)
+    else
+      _ -> not_found(conn)
+    end
+  end
+
+  defp render_player(conn, book, user) do
     chapters_with_urls =
       Enum.map(book.chapters, fn chapter ->
         %{
@@ -48,5 +56,22 @@ defmodule SonnetWeb.PlayerController do
     }
 
     render(conn, :show, book_data: book_data, page_title: "#{book.title} - Player")
+  end
+
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} when integer > 0 -> {:ok, integer}
+      _ -> :error
+    end
+  end
+
+  defp parse_id(value) when is_integer(value) and value > 0, do: {:ok, value}
+  defp parse_id(_value), do: :error
+
+  defp not_found(conn) do
+    conn
+    |> put_status(:not_found)
+    |> put_view(html: SonnetWeb.ErrorHTML)
+    |> render(:"404")
   end
 end

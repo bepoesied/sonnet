@@ -4,6 +4,7 @@ defmodule Sonnet.LibraryTest do
   alias Sonnet.Library
   alias Sonnet.Library.Book
   alias Sonnet.Library.Chapter
+  alias Sonnet.Accounts
 
   describe "ingest_segmented!/3" do
     test "creates a book, media assets, and chapters" do
@@ -112,5 +113,55 @@ defmodule Sonnet.LibraryTest do
       assert %{} = changes
       assert "can't be blank" in errors_on(changeset).title
     end
+  end
+
+  describe "save_listen_progress/5" do
+    test "rejects chapters that do not belong to the book" do
+      user = user_fixture()
+      {_book, chapter} = book_with_chapter_fixture("Right Book")
+      {other_book, _other_chapter} = book_with_chapter_fixture("Wrong Book")
+
+      assert {:error, :chapter_not_found} =
+               Library.save_listen_progress(user.id, other_book.id, chapter.id, 0)
+    end
+
+    test "rejects negative offsets" do
+      user = user_fixture()
+      {book, chapter} = book_with_chapter_fixture("Offset Book")
+
+      assert {:error, changeset} =
+               Library.save_listen_progress(user.id, book.id, chapter.id, -1)
+
+      assert "must be greater than or equal to 0" in errors_on(changeset).offset_ms
+    end
+  end
+
+  defp user_fixture do
+    {:ok, user} = Accounts.register_user(%{sub: Ecto.UUID.generate(), name: "Test User"})
+    user
+  end
+
+  defp book_with_chapter_fixture(title) do
+    {:ok, book} =
+      %Book{}
+      |> Book.changeset(%{title: title})
+      |> Repo.insert()
+
+    media_asset = Library.create_media_asset!("books/#{Ecto.UUID.generate()}.mp3")
+
+    {:ok, chapter} =
+      %Chapter{}
+      |> Chapter.changeset(%{
+        title: "Chapter 1",
+        position: 0,
+        start_ms: 0,
+        end_ms: 1_000,
+        duration_ms: 1_000,
+        book_id: book.id,
+        media_asset_id: media_asset.id
+      })
+      |> Repo.insert()
+
+    {book, chapter}
   end
 end

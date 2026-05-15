@@ -29,8 +29,126 @@ defmodule SonnetWeb.API.BookController do
 
   def show(conn, %{"id" => id}) do
     user = conn.assigns.current_scope.user
-    book = Library.get_book_with_status!(String.to_integer(id), user.id)
 
+    with {:ok, book_id} <- parse_id(id),
+         book when not is_nil(book) <- Library.get_book_with_status(book_id, user.id) do
+      render_book(conn, book)
+    else
+      :error -> error(conn, :bad_request, "Invalid book ID")
+      nil -> error(conn, :not_found, "Book not found")
+    end
+  end
+
+  def progress(conn, %{"id" => book_id}) do
+    user = conn.assigns.current_scope.user
+
+    with {:ok, book_id} <- parse_id(book_id),
+         book when not is_nil(book) <- Library.get_book(book_id) do
+      progress = Library.get_listen_progress(user.id, book.id)
+
+      data =
+        if progress do
+          %{
+            chapter_id: progress.chapter_id,
+            offset_ms: progress.offset_ms,
+            updated_at: progress.updated_at,
+            is_completed: progress.is_completed
+          }
+        else
+          %{
+            chapter_id: nil,
+            offset_ms: 0,
+            updated_at: nil,
+            is_completed: false
+          }
+        end
+
+      json(conn, data)
+    else
+      :error -> error(conn, :bad_request, "Invalid book ID")
+      nil -> error(conn, :not_found, "Book not found")
+    end
+  end
+
+  def update_progress(conn, %{"id" => book_id} = params) do
+    user = conn.assigns.current_scope.user
+
+    with {:ok, book_id} <- parse_id(book_id),
+         book when not is_nil(book) <- Library.get_book(book_id),
+         {:ok, chapter_id} <- parse_required_int(Map.get(params, "chapter_id")),
+         {:ok, offset_ms} <- parse_non_negative_int(Map.get(params, "offset_ms", 0)),
+         {:ok, _progress} <- Library.save_listen_progress(user.id, book.id, chapter_id, offset_ms) do
+      send_resp(conn, :no_content, "")
+    else
+      :error ->
+        error(conn, :bad_request, "Invalid book ID")
+
+      nil ->
+        error(conn, :not_found, "Book not found")
+
+      {:error, :invalid_integer} ->
+        error(conn, :unprocessable_entity, "Invalid progress payload")
+
+      {:error, :chapter_not_found} ->
+        error(conn, :unprocessable_entity, "Chapter not found")
+
+      {:error, %Ecto.Changeset{}} ->
+        error(conn, :unprocessable_entity, "Invalid progress payload")
+    end
+  end
+
+  def complete(conn, %{"id" => book_id} = params) do
+    user = conn.assigns.current_scope.user
+
+    with {:ok, book_id} <- parse_id(book_id),
+         book when not is_nil(book) <- Library.get_book(book_id),
+         {:ok, chapter_id} <- completion_chapter_id(book, params),
+         {:ok, _progress} <- Library.mark_book_complete(user.id, book.id, chapter_id) do
+      send_resp(conn, :no_content, "")
+    else
+      :error ->
+        error(conn, :bad_request, "Invalid book ID")
+
+      nil ->
+        error(conn, :not_found, "Book not found")
+
+      {:error, :invalid_integer} ->
+        error(conn, :unprocessable_entity, "Invalid progress payload")
+
+      {:error, :no_chapters} ->
+        error(conn, :unprocessable_entity, "Book has no chapters")
+
+      {:error, :chapter_not_found} ->
+        error(conn, :unprocessable_entity, "Chapter not found")
+
+      {:error, %Ecto.Changeset{}} ->
+        error(conn, :unprocessable_entity, "Invalid progress payload")
+    end
+  end
+
+  def incomplete(conn, %{"id" => book_id}) do
+    user = conn.assigns.current_scope.user
+
+    with {:ok, book_id} <- parse_id(book_id),
+         book when not is_nil(book) <- Library.get_book(book_id),
+         {:ok, _progress} <- Library.mark_book_incomplete(user.id, book.id) do
+      send_resp(conn, :no_content, "")
+    else
+      :error ->
+        error(conn, :bad_request, "Invalid book ID")
+
+      nil ->
+        error(conn, :not_found, "Book not found")
+
+      {:error, %Ecto.Changeset{}} ->
+        error(conn, :unprocessable_entity, "Invalid progress payload")
+
+      {:error, :chapter_not_found} ->
+        error(conn, :unprocessable_entity, "Chapter not found")
+    end
+  end
+
+  defp render_book(conn, book) do
     chapters_json =
       Enum.map(book.chapters, fn chapter ->
         %{
@@ -60,66 +178,50 @@ defmodule SonnetWeb.API.BookController do
     })
   end
 
-  def progress(conn, %{"id" => book_id}) do
-    user = conn.assigns.current_scope.user
-    progress = Library.get_listen_progress(user.id, String.to_integer(book_id))
-
-    data =
-      if progress do
-        %{
-          chapter_id: progress.chapter_id,
-          offset_ms: progress.offset_ms,
-          updated_at: progress.updated_at,
-          is_completed: progress.is_completed
-        }
-      else
-        %{
-          chapter_id: nil,
-          offset_ms: 0,
-          updated_at: nil,
-          is_completed: false
-        }
-      end
-
-    json(conn, data)
+  defp completion_chapter_id(book, params) do
+    case Map.fetch(params, "chapter_id") do
+      {:ok, chapter_id} -> parse_required_int(chapter_id)
+      :error -> first_chapter_id(book)
+    end
   end
 
-  def update_progress(conn, %{"id" => book_id} = params) do
-    user = conn.assigns.current_scope.user
-
-    chapter_id = Map.get(params, "chapter_id")
-    offset_ms = Map.get(params, "offset_ms", 0)
-
-    Library.save_listen_progress(
-      user.id,
-      to_int(book_id),
-      to_int(chapter_id),
-      to_int(offset_ms)
-    )
-
-    send_resp(conn, :no_content, "")
+  defp first_chapter_id(book) do
+    case List.first(book.chapters) do
+      nil -> {:error, :no_chapters}
+      chapter -> {:ok, chapter.id}
+    end
   end
 
-  def complete(conn, %{"id" => book_id} = params) do
-    user = conn.assigns.current_scope.user
-
-    chapter_id =
-      Map.get(params, "chapter_id") ||
-        Library.get_book!(to_int(book_id)).chapters |> List.first() |> Map.get(:id)
-
-    Library.mark_book_complete(user.id, to_int(book_id), to_int(chapter_id))
-
-    send_resp(conn, :no_content, "")
+  defp parse_id(value) do
+    with {:ok, integer} <- parse_required_int(value), true <- integer > 0 do
+      {:ok, integer}
+    else
+      _ -> :error
+    end
   end
 
-  def incomplete(conn, %{"id" => book_id}) do
-    user = conn.assigns.current_scope.user
-    Library.mark_book_incomplete(user.id, to_int(book_id))
-
-    send_resp(conn, :no_content, "")
+  defp parse_non_negative_int(value) do
+    with {:ok, integer} <- parse_required_int(value), true <- integer >= 0 do
+      {:ok, integer}
+    else
+      _ -> {:error, :invalid_integer}
+    end
   end
 
-  defp to_int(nil), do: nil
-  defp to_int(val) when is_integer(val), do: val
-  defp to_int(val) when is_binary(val), do: String.to_integer(val)
+  defp parse_required_int(value) when is_integer(value), do: {:ok, value}
+
+  defp parse_required_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} -> {:ok, integer}
+      _ -> {:error, :invalid_integer}
+    end
+  end
+
+  defp parse_required_int(_value), do: {:error, :invalid_integer}
+
+  defp error(conn, status, message) do
+    conn
+    |> put_status(status)
+    |> json(%{error: message})
+  end
 end

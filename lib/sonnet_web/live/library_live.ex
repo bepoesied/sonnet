@@ -20,18 +20,25 @@ defmodule SonnetWeb.LibraryLive do
   end
 
   defp apply_action(socket, :edit, %{"id" => id}) do
-    book = Library.get_book!(id)
-
-    socket
-    |> allow_upload(:cover,
-      accept: ~w(.jpg .jpeg .png .webp .gif .bmp),
-      max_entries: 1,
-      max_file_size: 10_000_000,
-      auto_upload: true
-    )
-    |> assign(:page_title, "Edit Book")
-    |> assign(:editing_book, book)
-    |> assign(:edit_form, to_form(Sonnet.Library.Book.changeset(book, %{})))
+    with {:ok, book_id} <- parse_id(id),
+         book when not is_nil(book) <- Library.get_book(book_id) do
+      socket
+      |> allow_upload(:cover,
+        accept: ~w(.jpg .jpeg .png .webp .gif .bmp),
+        max_entries: 1,
+        max_file_size: 10_000_000,
+        auto_upload: true
+      )
+      |> assign(:page_title, "Edit Book")
+      |> assign(:editing_book, book)
+      |> assign(:edit_form, to_form(Sonnet.Library.Book.changeset(book, %{})))
+    else
+      _ ->
+        socket
+        |> put_flash(:error, "Book not found")
+        |> push_patch(to: ~p"/library")
+        |> apply_action(:index, %{})
+    end
   end
 
   defp apply_action(socket, :index, _params) do
@@ -119,49 +126,48 @@ defmodule SonnetWeb.LibraryLive do
 
   @impl true
   def handle_event("mark_complete", %{"id" => id}, socket) do
-    book_id = String.to_integer(id)
     user_id = socket.assigns.current_scope.user.id
-    book = Library.get_book!(book_id)
 
-    chapter_id =
-      case Library.get_listen_progress(user_id, book_id) do
-        nil -> List.first(book.chapters).id
-        progress -> progress.chapter_id
-      end
-
-    Library.mark_book_complete(user_id, book_id, chapter_id)
-
-    updated_book = Library.get_book_with_status!(book_id, user_id)
-
-    {:noreply, stream_insert(socket, :books, updated_book)}
+    with {:ok, book_id} <- parse_id(id),
+         book when not is_nil(book) <- Library.get_book(book_id),
+         {:ok, chapter_id} <- progress_or_first_chapter_id(user_id, book),
+         {:ok, _progress} <- Library.mark_book_complete(user_id, book_id, chapter_id),
+         updated_book when not is_nil(updated_book) <-
+           Library.get_book_with_status(book_id, user_id) do
+      {:noreply, stream_insert(socket, :books, updated_book)}
+    else
+      {:error, :no_chapters} -> {:noreply, put_flash(socket, :error, "Book has no chapters")}
+      _ -> {:noreply, put_flash(socket, :error, "Could not mark book complete")}
+    end
   end
 
   @impl true
   def handle_event("mark_incomplete", %{"id" => id}, socket) do
-    book_id = String.to_integer(id)
     user_id = socket.assigns.current_scope.user.id
 
-    Library.mark_book_incomplete(user_id, book_id)
-    updated_book = Library.get_book_with_status!(book_id, user_id)
-
-    {:noreply, stream_insert(socket, :books, updated_book)}
+    with {:ok, book_id} <- parse_id(id),
+         book when not is_nil(book) <- Library.get_book(book_id),
+         {:ok, _progress} <- Library.mark_book_incomplete(user_id, book.id),
+         updated_book when not is_nil(updated_book) <-
+           Library.get_book_with_status(book_id, user_id) do
+      {:noreply, stream_insert(socket, :books, updated_book)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Could not mark book incomplete")}
+    end
   end
 
   @impl true
   def handle_event("delete_book", %{"id" => id}, socket) do
-    book_id = String.to_integer(id)
+    with {:ok, book_id} <- parse_id(id),
+         {:ok, _book} <- Library.delete_book(book_id) do
+      socket =
+        socket
+        |> put_flash(:info, "Book deleted successfully")
+        |> stream_delete(:books, %{id: book_id})
 
-    case Library.delete_book(book_id) do
-      {:ok, _book} ->
-        socket =
-          socket
-          |> put_flash(:info, "Book deleted successfully")
-          |> stream_delete(:books, %{id: book_id})
-
-        {:noreply, socket}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to delete book")}
+      {:noreply, socket}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Failed to delete book")}
     end
   end
 
@@ -272,4 +278,28 @@ defmodule SonnetWeb.LibraryLive do
     key = Path.join(["covers", "#{hash}.jpg"])
     Sonnet.Storage.upload_file!(path, key)
   end
+
+  defp progress_or_first_chapter_id(user_id, book) do
+    case Library.get_listen_progress(user_id, book.id) do
+      nil -> first_chapter_id(book)
+      progress -> {:ok, progress.chapter_id}
+    end
+  end
+
+  defp first_chapter_id(book) do
+    case List.first(book.chapters) do
+      nil -> {:error, :no_chapters}
+      chapter -> {:ok, chapter.id}
+    end
+  end
+
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} when integer > 0 -> {:ok, integer}
+      _ -> :error
+    end
+  end
+
+  defp parse_id(value) when is_integer(value) and value > 0, do: {:ok, value}
+  defp parse_id(_value), do: :error
 end
