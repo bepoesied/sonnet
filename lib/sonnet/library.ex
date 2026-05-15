@@ -220,7 +220,8 @@ defmodule Sonnet.Library do
         user_id: user_id,
         book_id: book_id,
         chapter_id: chapter_id,
-        offset_ms: offset_ms
+        offset_ms: offset_ms,
+        is_completed: false
       }
 
       attrs =

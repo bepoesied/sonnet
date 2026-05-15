@@ -116,6 +116,45 @@ defmodule Sonnet.LibraryTest do
   end
 
   describe "save_listen_progress/5" do
+    test "creates and updates one progress row per user and book" do
+      user = user_fixture()
+      {book, first_chapter} = book_with_chapter_fixture("Single Progress Book")
+      second_chapter = chapter_fixture(book, "Chapter 2", 1, 1_000, 2_000)
+
+      assert {:ok, progress} =
+               Library.save_listen_progress(user.id, book.id, first_chapter.id, 250)
+
+      assert progress.chapter_id == first_chapter.id
+      assert progress.offset_ms == 250
+      assert progress.is_completed == false
+
+      assert {:ok, updated_progress} =
+               Library.save_listen_progress(user.id, book.id, second_chapter.id, 750)
+
+      assert updated_progress.id == progress.id
+      assert updated_progress.chapter_id == second_chapter.id
+      assert updated_progress.offset_ms == 750
+      assert Repo.aggregate(Library.ListenProgress, :count) == 1
+    end
+
+    test "saving progress after completion marks the book incomplete" do
+      user = user_fixture()
+      {book, chapter} = book_with_chapter_fixture("Completed Progress Book")
+
+      assert {:ok, completed_progress} =
+               Library.mark_book_complete(user.id, book.id, chapter.id)
+
+      assert completed_progress.is_completed == true
+
+      assert {:ok, updated_progress} =
+               Library.save_listen_progress(user.id, book.id, chapter.id, 500)
+
+      assert updated_progress.id == completed_progress.id
+      assert updated_progress.offset_ms == 500
+      assert updated_progress.is_completed == false
+      assert Library.get_listen_progress(user.id, book.id).is_completed == false
+    end
+
     test "rejects chapters that do not belong to the book" do
       user = user_fixture()
       {_book, chapter} = book_with_chapter_fixture("Right Book")
@@ -136,6 +175,30 @@ defmodule Sonnet.LibraryTest do
     end
   end
 
+  describe "completion state" do
+    test "mark_book_incomplete/2 is a no-op when progress does not exist" do
+      user = user_fixture()
+      {book, _chapter} = book_with_chapter_fixture("No Progress Book")
+
+      assert Library.mark_book_incomplete(user.id, book.id) == {:ok, nil}
+      assert Library.get_listen_progress(user.id, book.id) == nil
+    end
+
+    test "list_books/1 returns completion state for only the requested user" do
+      completed_user = user_fixture()
+      other_user = user_fixture()
+      {book, chapter} = book_with_chapter_fixture("User Scoped Completion Book")
+
+      assert {:ok, _progress} = Library.mark_book_complete(completed_user.id, book.id, chapter.id)
+
+      assert [%Book{id: book_id, is_completed: true}] = Library.list_books(completed_user.id)
+      assert book_id == book.id
+
+      assert [%Book{id: book_id, is_completed: false}] = Library.list_books(other_user.id)
+      assert book_id == book.id
+    end
+  end
+
   defp user_fixture do
     {:ok, user} = Accounts.register_user(%{sub: Ecto.UUID.generate(), name: "Test User"})
     user
@@ -149,19 +212,27 @@ defmodule Sonnet.LibraryTest do
 
     media_asset = Library.create_media_asset!("books/#{Ecto.UUID.generate()}.mp3")
 
+    chapter = chapter_fixture(book, "Chapter 1", 0, 0, 1_000, media_asset)
+
+    {book, chapter}
+  end
+
+  defp chapter_fixture(book, title, position, start_ms, end_ms, media_asset \\ nil) do
+    media_asset = media_asset || Library.create_media_asset!("books/#{Ecto.UUID.generate()}.mp3")
+
     {:ok, chapter} =
       %Chapter{}
       |> Chapter.changeset(%{
-        title: "Chapter 1",
-        position: 0,
-        start_ms: 0,
-        end_ms: 1_000,
-        duration_ms: 1_000,
+        title: title,
+        position: position,
+        start_ms: start_ms,
+        end_ms: end_ms,
+        duration_ms: end_ms - start_ms,
         book_id: book.id,
         media_asset_id: media_asset.id
       })
       |> Repo.insert()
 
-    {book, chapter}
+    chapter
   end
 end
