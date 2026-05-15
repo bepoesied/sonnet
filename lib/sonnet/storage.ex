@@ -32,10 +32,12 @@ defmodule Sonnet.Storage do
   Returns `:ok` on success or `{:error, reason}` on failure.
   """
   def upload_file(local_path, s3_key) do
+    key = full_key(s3_key)
+
     result =
       local_path
       |> ExAws.S3.Upload.stream_file()
-      |> ExAws.S3.upload(bucket(), s3_key)
+      |> ExAws.S3.upload(bucket(), key)
       |> ExAws.request()
 
     case result do
@@ -78,7 +80,8 @@ defmodule Sonnet.Storage do
   Logs warnings for errors other than 404.
   """
   def object_exists?(s3_key) do
-    result = ExAws.S3.head_object(bucket(), s3_key) |> ExAws.request()
+    key = full_key(s3_key)
+    result = ExAws.S3.head_object(bucket(), key) |> ExAws.request()
 
     case result do
       {:ok, %{status_code: status}} when status in 200..299 ->
@@ -88,7 +91,7 @@ defmodule Sonnet.Storage do
         false
 
       {:error, reason} ->
-        Logger.warning("Error checking S3 object existence (#{s3_key}): #{inspect(reason)}")
+        Logger.warning("Error checking S3 object existence (#{key}): #{inspect(reason)}")
         false
     end
   end
@@ -103,7 +106,8 @@ defmodule Sonnet.Storage do
 
   def presigned_get_url(s3_key, expires_in) do
     config = ExAws.Config.new(:s3)
-    {:ok, url} = ExAws.S3.presigned_url(config, :get, bucket(), s3_key, expires_in: expires_in)
+    key = full_key(s3_key)
+    {:ok, url} = ExAws.S3.presigned_url(config, :get, bucket(), key, expires_in: expires_in)
     url
   end
 
@@ -114,9 +118,10 @@ defmodule Sonnet.Storage do
   """
   def presigned_put_url(s3_key, expires_in \\ 3600, query_params \\ []) do
     config = ExAws.Config.new(:s3)
+    key = full_key(s3_key)
 
     {:ok, url} =
-      ExAws.S3.presigned_url(config, :put, bucket(), s3_key,
+      ExAws.S3.presigned_url(config, :put, bucket(), key,
         expires_in: expires_in,
         query_params: query_params
       )

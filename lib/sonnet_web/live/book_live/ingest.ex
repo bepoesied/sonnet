@@ -87,7 +87,7 @@ defmodule SonnetWeb.BookLive.Ingest do
               <.input
                 field={@bulk_form[:keys]}
                 type="textarea"
-                label="S3 Keys (newline separated)"
+                label="Relative S3 Keys (newline separated)"
                 placeholder="incoming/file1.m4b\nincoming/file2.m4b"
                 rows="10"
               />
@@ -176,7 +176,7 @@ defmodule SonnetWeb.BookLive.Ingest do
   end
 
   defp presign_upload(entry, socket) do
-    key = Path.join(Sonnet.Storage.prefix(), Ecto.UUID.generate())
+    key = Ecto.UUID.generate()
     url = Sonnet.Storage.presigned_put_url(key, 3600, [{"Content-Type", entry.client_type}])
 
     {:ok, %{uploader: "S3", key: key, url: url}, socket}

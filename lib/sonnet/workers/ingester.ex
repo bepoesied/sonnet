@@ -251,7 +251,7 @@ defmodule Sonnet.Workers.Ingester do
       Enum.map(segments, fn %{path: path, title: title} ->
         hash = calculate_file_hash(path)
         extension = Path.extname(path)
-        s3_key = Path.join([Sonnet.Storage.prefix(), "books", "#{hash}#{extension}"])
+        s3_key = Path.join(["books", "#{hash}#{extension}"])
 
         case upload_segment(path, s3_key) do
           :ok ->
@@ -386,7 +386,7 @@ defmodule Sonnet.Workers.Ingester do
   end
 
   defp upload_cover(path, hash) do
-    key = Path.join([Sonnet.Storage.prefix(), "covers", "#{hash}.jpg"])
+    key = Path.join(["covers", "#{hash}.jpg"])
     Sonnet.Storage.upload_file!(path, key)
   end
 
