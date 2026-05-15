@@ -77,8 +77,15 @@ class AudioPlayer {
     this.engine.onTrackChanged = () => this.handleSeamlessChapterChange();
     this.engine.onError = () => this.showErr("Playback failed");
     this.engine.onMetadataLoaded = () => this.onMetadataLoaded();
-    this.engine.onPlay = () => this.updatePlayState(true);
-    this.engine.onPause = () => this.updatePlayState(false);
+    this.engine.onPlay = () => {
+      this.state.isPlaying = true;
+      this.updatePlayState(true);
+    };
+    this.engine.onPause = () => {
+      if (this.engine.active.ended) return;
+      this.state.isPlaying = false;
+      this.updatePlayState(false);
+    };
 
     this.init();
   }
@@ -230,7 +237,11 @@ class AudioPlayer {
       await this.engine.play();
       this.state.isPlaying = true;
     } catch (e) {
-      if (e.name !== "AbortError") this.showErr("Playback failed");
+      if (e.name !== "AbortError") {
+        this.state.isPlaying = false;
+        this.updatePlayState(false);
+        this.showErr("Playback failed");
+      }
     } finally {
       this.state.isPending = false;
     }

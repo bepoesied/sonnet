@@ -1,7 +1,6 @@
 export class AudioEngine {
   constructor() {
-    this.buffers = [this._createAudioEl(), this._createAudioEl()];
-    this.activeIdx = 0;
+    this.audio = this._createAudioEl();
     this.nextUrl = null;
     this.isLocked = false;
 
@@ -15,10 +14,10 @@ export class AudioEngine {
   }
 
   get active() {
-    return this.buffers[this.activeIdx];
+    return this.audio;
   }
   get standby() {
-    return this.buffers[this.activeIdx ^ 1];
+    return null;
   }
   get duration() {
     return this.active.duration;
@@ -85,17 +84,14 @@ export class AudioEngine {
       el.currentTime = startOffset;
     }
 
-    this.standby.pause();
-    this.standby.src = "";
     this.nextUrl = null;
   }
 
   preloadNext(url) {
-    if (this.nextUrl === url) return;
+    // Mobile browsers are prone to suspending playback when a backgrounded
+    // page swaps between multiple Audio elements. Keep a single media element
+    // authoritative and let the service worker/cache handle chapter readiness.
     this.nextUrl = url;
-    const el = this.standby;
-    el.src = url;
-    el.load();
   }
 
   play() {
@@ -122,22 +118,6 @@ export class AudioEngine {
   }
 
   _handleEnded() {
-    if (this.standby.src && this.standby.readyState >= 2) {
-      const oldActive = this.active;
-      this.activeIdx = this.activeIdx ^ 1;
-
-      this.active
-        .play()
-        .then(() => {
-          if (this.onTrackChanged) this.onTrackChanged(this.active.src);
-        })
-        .catch(() => {});
-
-      oldActive.pause();
-      oldActive.currentTime = 0;
-      oldActive.src = "";
-    } else {
-      if (this.onTrackEnded) this.onTrackEnded();
-    }
+    if (this.onTrackEnded) this.onTrackEnded();
   }
 }
