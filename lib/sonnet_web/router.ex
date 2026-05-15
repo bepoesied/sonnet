@@ -31,6 +31,12 @@ defmodule SonnetWeb.Router do
 
   # API routes
   scope "/api", SonnetWeb.API do
+    pipe_through [:api]
+
+    post "/auth/oidc-login", AuthController, :oidc_login
+  end
+
+  scope "/api", SonnetWeb.API do
     pipe_through [:api, :require_authenticated_user]
 
     get "/books", BookController, :index
