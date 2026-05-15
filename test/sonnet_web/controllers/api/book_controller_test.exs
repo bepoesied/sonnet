@@ -18,6 +18,20 @@ defmodule SonnetWeb.API.BookControllerTest do
       assert json_response(conn, 401) == %{"error" => "Unauthorized"}
     end
 
+    test "returns JSON 401 without audio URLs for unauthenticated API detail requests", %{
+      conn: conn
+    } do
+      {book, _chapter} = book_with_chapter_fixture("Unauthenticated Detail Book")
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get(~p"/api/books/#{book.id}")
+
+      assert json_response(conn, 401) == %{"error" => "Unauthorized"}
+      refute response(conn, 401) =~ "audio_url"
+    end
+
     test "returns JSON 401 for unauthenticated API write requests", %{conn: conn} do
       {book, chapter} = book_with_chapter_fixture("Unauthenticated Progress Book")
 
@@ -56,19 +70,33 @@ defmodule SonnetWeb.API.BookControllerTest do
   end
 
   describe "show/2" do
-    test "returns book details with chapters", %{conn: conn} do
-      {book, chapter} = book_with_chapter_fixture("Detail Book")
+    test "returns book details with playback URLs, cover, chapters, and progress", %{conn: conn} do
+      user = user_fixture()
+      token = Accounts.generate_user_session_token(user)
 
-      conn = get(authenticated_conn(conn), ~p"/api/books/#{book.id}")
+      {book, chapter} =
+        book_with_chapter_fixture("Detail Book", cover_s3_key: "covers/detail.jpg")
+
+      assert {:ok, _progress} = Library.save_listen_progress(user.id, book.id, chapter.id, 321)
+
+      conn =
+        conn
+        |> authenticated_conn(token)
+        |> get(~p"/api/books/#{book.id}")
 
       assert payload = json_response(conn, 200)
       assert payload["id"] == book.id
       assert payload["title"] == "Detail Book"
       assert payload["is_completed"] == false
+      assert payload["cover_url"] =~ "covers/detail.jpg"
       assert [chapter_payload] = payload["chapters"]
       assert chapter_payload["id"] == chapter.id
       assert chapter_payload["position"] == 0
-      refute Map.has_key?(chapter_payload, "audio_url")
+      assert chapter_payload["audio_url"] =~ ".mp3"
+      assert payload["progress"]["chapter_id"] == chapter.id
+      assert payload["progress"]["offset_ms"] == 321
+      assert payload["progress"]["is_completed"] == false
+      assert is_binary(payload["progress"]["updated_at"])
     end
 
     test "returns 400 for malformed book IDs", %{conn: conn} do
@@ -272,17 +300,17 @@ defmodule SonnetWeb.API.BookControllerTest do
     user
   end
 
-  defp book_fixture(title) do
+  defp book_fixture(title, attrs \\ %{}) do
     {:ok, book} =
       %Book{}
-      |> Book.changeset(%{title: title})
+      |> Book.changeset(Map.merge(%{title: title}, Map.new(attrs)))
       |> Repo.insert()
 
     book
   end
 
-  defp book_with_chapter_fixture(title) do
-    book = book_fixture(title)
+  defp book_with_chapter_fixture(title, attrs \\ %{}) do
+    book = book_fixture(title, attrs)
     media_asset = Library.create_media_asset!("books/#{Ecto.UUID.generate()}.mp3")
 
     chapter = chapter_fixture(book, "Chapter 1", 0, 0, 1_000, media_asset)

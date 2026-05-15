@@ -13,10 +13,11 @@ defmodule SonnetWeb.BookSerializer do
     }
   end
 
-  def api_detail(book, opts \\ []) do
+  def api_detail(book, progress \\ nil, opts \\ []) do
     book
     |> api_summary(opts)
-    |> Map.put(:chapters, Enum.map(book.chapters, &api_chapter/1))
+    |> Map.put(:chapters, Enum.map(book.chapters, &player_chapter(&1, opts)))
+    |> Map.put(:progress, progress(progress))
   end
 
   def player_detail(book, progress, opts \\ []) do

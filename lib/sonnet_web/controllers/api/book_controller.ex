@@ -116,7 +116,10 @@ defmodule SonnetWeb.API.BookController do
   end
 
   defp render_book(conn, book) do
-    json(conn, BookSerializer.api_detail(book))
+    user = conn.assigns.current_scope.user
+    progress = Library.get_listen_progress(user.id, book.id)
+
+    json(conn, BookSerializer.api_detail(book, progress))
   end
 
   defp completion_chapter_id(book, params) do

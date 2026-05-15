@@ -2,6 +2,18 @@ import Config
 
 config :sonnet, Oban, testing: :manual
 
+config :sonnet, :ingest_bucket, "sonnet-test"
+
+config :ex_aws,
+  access_key_id: "test-access-key",
+  secret_access_key: "test-secret-key"
+
+config :ex_aws, :s3,
+  host: "localhost",
+  scheme: "http://",
+  port: 3900,
+  region: "us-east-1"
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used

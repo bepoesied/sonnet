@@ -21,8 +21,8 @@ defmodule SonnetWeb.BookSerializerTest do
            }
   end
 
-  test "api_detail/2 returns API chapter data without player-only audio URLs" do
-    assert BookSerializer.api_detail(book(), url_fun: &test_url/1) == %{
+  test "api_detail/3 returns playback chapter data and API progress" do
+    assert BookSerializer.api_detail(book(), progress(), url_fun: &test_url/1) == %{
              id: 1,
              title: "Book Title",
              author: "Author Name",
@@ -38,9 +38,16 @@ defmodule SonnetWeb.BookSerializerTest do
                  start_ms: 0,
                  end_ms: 1_000,
                  duration_ms: 1_000,
-                 media_asset_id: 3
+                 media_asset_id: 3,
+                 audio_url: "/media/books/chapter-1.mp3"
                }
-             ]
+             ],
+             progress: %{
+               chapter_id: 2,
+               offset_ms: 500,
+               updated_at: @updated_at,
+               is_completed: false
+             }
            }
   end
 
