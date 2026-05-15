@@ -115,8 +115,81 @@ defmodule SonnetWeb.API.AuthControllerTest do
     end
   end
 
+  describe "POST /api/auth/token-refresh" do
+    test "rotates a refresh token on the API auth route", %{conn: conn} do
+      user = user_fixture()
+      refresh_token = Accounts.generate_user_refresh_token(user)
+
+      conn =
+        post(json_conn(conn), ~p"/api/auth/token-refresh", %{
+          refresh_token: Base.url_encode64(refresh_token, padding: false)
+        })
+
+      payload = json_response(conn, 200)
+      assert is_binary(payload["access_token"])
+      assert is_binary(payload["refresh_token"])
+
+      assert {:ok, access_token} = Base.url_decode64(payload["access_token"], padding: false)
+
+      assert {:ok, new_refresh_token} =
+               Base.url_decode64(payload["refresh_token"], padding: false)
+
+      assert {%Accounts.User{id: user_id}, _inserted_at} =
+               Accounts.get_user_by_session_token(access_token)
+
+      assert user_id == user.id
+
+      assert {%Accounts.User{id: ^user_id}, _inserted_at} =
+               Accounts.get_user_by_refresh_token(new_refresh_token)
+
+      refute Accounts.get_user_by_refresh_token(refresh_token)
+    end
+  end
+
+  describe "POST /api/auth/logout" do
+    test "deletes submitted access and refresh tokens on the API auth route", %{conn: conn} do
+      user = user_fixture()
+      access_token = Accounts.generate_user_session_token(user)
+      refresh_token = Accounts.generate_user_refresh_token(user)
+
+      conn =
+        conn
+        |> json_conn()
+        |> put_req_header(
+          "authorization",
+          "Bearer #{Base.url_encode64(access_token, padding: false)}"
+        )
+        |> post(~p"/api/auth/logout", %{
+          refresh_token: Base.url_encode64(refresh_token, padding: false)
+        })
+
+      assert json_response(conn, 200) == %{"ok" => true}
+      refute Accounts.get_user_by_session_token(access_token)
+      refute Accounts.get_user_by_refresh_token(refresh_token)
+    end
+  end
+
+  describe "removed API auth aliases" do
+    test "does not route the legacy token refresh alias", %{conn: conn} do
+      conn = post(json_conn(conn), "/users/token-refresh", %{})
+
+      assert response(conn, 404)
+    end
+
+    test "does not route the legacy logout alias", %{conn: conn} do
+      conn = post(json_conn(conn), "/users/logout", %{})
+
+      assert response(conn, 404)
+    end
+  end
+
   defp json_conn(conn) do
     put_req_header(conn, "accept", "application/json")
+  end
+
+  defp user_fixture do
+    {:ok, user} = Accounts.register_user(%{sub: Ecto.UUID.generate(), name: "Test User"})
+    user
   end
 
   defp id_token(jwk, overrides) do

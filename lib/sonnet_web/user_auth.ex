@@ -295,6 +295,17 @@ defmodule SonnetWeb.UserAuth do
     end
   end
 
+  def require_authenticated_api_user(conn, _opts) do
+    if conn.assigns.current_scope && conn.assigns.current_scope.user do
+      conn
+    else
+      conn
+      |> put_status(:unauthorized)
+      |> json(%{error: "Unauthorized"})
+      |> halt()
+    end
+  end
+
   defp maybe_store_return_to(%{method: "GET"} = conn) do
     put_session(conn, :user_return_to, current_path(conn))
   end
@@ -311,7 +322,11 @@ defmodule SonnetWeb.UserAuth do
         conn
 
       _ ->
-        protect_from_forgery(conn, [])
+        if conn.assigns.current_scope && conn.assigns.current_scope.user do
+          protect_from_forgery(conn, [])
+        else
+          conn
+        end
     end
   end
 end

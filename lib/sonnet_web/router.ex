@@ -17,9 +17,9 @@ defmodule SonnetWeb.Router do
   pipeline :api do
     plug :accepts, ["json"]
     plug :fetch_session
+    plug :fetch_current_scope_for_user
     plug :protect_from_forgery_when_using_cookie
     plug :put_secure_browser_headers
-    plug :fetch_current_scope_for_user
   end
 
   scope "/", SonnetWeb do
@@ -34,10 +34,12 @@ defmodule SonnetWeb.Router do
     pipe_through [:api]
 
     post "/auth/oidc-login", AuthController, :oidc_login
+    post "/auth/token-refresh", AuthController, :refresh
+    post "/auth/logout", AuthController, :delete
   end
 
   scope "/api", SonnetWeb.API do
-    pipe_through [:api, :require_authenticated_user]
+    pipe_through [:api, :require_authenticated_api_user]
 
     get "/books", BookController, :index
     get "/books/:id", BookController, :show
@@ -83,12 +85,5 @@ defmodule SonnetWeb.Router do
 
     get "/auth/:provider", AuthController, :request
     get "/auth/:provider/callback", AuthController, :callback
-  end
-
-  scope "/", SonnetWeb do
-    pipe_through [:api]
-
-    post "/users/token-refresh", UserSessionController, :refresh
-    post "/users/logout", UserSessionController, :delete
   end
 end

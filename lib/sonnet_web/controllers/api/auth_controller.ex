@@ -3,6 +3,7 @@ defmodule SonnetWeb.API.AuthController do
 
   alias Sonnet.Accounts
   alias Sonnet.OIDCTokenVerifier
+  alias SonnetWeb.UserSessionController
 
   def oidc_login(conn, %{"id_token" => id_token}) do
     with {:ok, claims} <- OIDCTokenVerifier.verify_id_token(id_token),
@@ -25,6 +26,10 @@ defmodule SonnetWeb.API.AuthController do
   end
 
   def oidc_login(conn, _params), do: render_error(conn, :missing_token)
+
+  def refresh(conn, params), do: UserSessionController.refresh(conn, params)
+
+  def delete(conn, params), do: UserSessionController.delete(conn, params)
 
   defp upsert_user(claims) do
     Accounts.register_user(%{

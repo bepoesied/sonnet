@@ -8,6 +8,28 @@ defmodule SonnetWeb.API.BookControllerTest do
   alias Sonnet.Library.ListenProgress
   alias Sonnet.Repo
 
+  describe "authentication" do
+    test "returns JSON 401 for unauthenticated API GET requests", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get(~p"/api/books")
+
+      assert json_response(conn, 401) == %{"error" => "Unauthorized"}
+    end
+
+    test "returns JSON 401 for unauthenticated API write requests", %{conn: conn} do
+      {book, chapter} = book_with_chapter_fixture("Unauthenticated Progress Book")
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> put(~p"/api/books/#{book.id}/progress", %{chapter_id: chapter.id, offset_ms: 123})
+
+      assert json_response(conn, 401) == %{"error" => "Unauthorized"}
+    end
+  end
+
   describe "index/2" do
     test "returns books with completion state for the authenticated user", %{conn: conn} do
       user = user_fixture()
