@@ -17,27 +17,31 @@ defmodule Sonnet.Workers.Ingester do
 
       {:error, reason} ->
         Logger.error("Fatal error ingesting #{s3_key}: #{inspect(reason)}")
-        cleanup_fatal(s3_key)
         {:error, reason}
     end
   end
 
-  defp ingest_single_file(s3_key, original_filename, book_metadata) do
+  defp ingest_single_file(s3_key, _original_filename, book_metadata) do
     with {:ok, path} <- download_from_s3(s3_key),
-         {:ok, probe} <- probe_file(path),
-         cover_s3_key <- extract_and_upload_cover(path, probe),
-         {:ok, segments} <- segment_file(path, probe, []),
-         {:ok, segments_data} <- upload_segments(segments),
-         {:ok, _} <-
-           create_book_from_segments(
-             segments_data,
-             merge_metadata(book_metadata, probe),
-             cover_s3_key
-           ),
-         {:ok, _} <-
-           delete_from_s3(original_filename) do
-      Sonnet.Library.broadcast_books_updated()
-      :ok
+         {:ok, probe} <- probe_file(path) do
+      cover_s3_key = extract_and_upload_cover(path, probe)
+
+      case segment_file(path, probe, []) do
+        {:ok, segments} ->
+          persist_single_file_ingestion(
+            s3_key,
+            segments,
+            merge_metadata(book_metadata, probe),
+            cover_s3_key
+          )
+
+        {:error, reason} ->
+          cleanup_single_file_failure(s3_key, [], cover_s3_key)
+          ingestion_error(:segmentation_failed, reason)
+      end
+    else
+      {:error, reason} ->
+        ingestion_error(:download_or_probe_failed, reason)
     end
   end
 
@@ -47,8 +51,10 @@ defmodule Sonnet.Workers.Ingester do
   end
 
   defp delete_from_s3(s3_key) do
-    Sonnet.Storage.delete_object(s3_key)
-    {:ok, :ok}
+    case Sonnet.Storage.delete_object(s3_key) do
+      :ok -> {:ok, :ok}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp probe_file(path) do
@@ -100,12 +106,12 @@ defmodule Sonnet.Workers.Ingester do
     }
   end
 
-  defp segment_file(original_path, probe, chapters) do
+  defp segment_file(original_path, probe, _chapters) do
     chapters_metadata = Map.get(probe, "chapters", [])
     extension = get_extension_from_probe(probe)
 
     if chapters_metadata == [] do
-      segment_by_duration(original_path, length(chapters), extension)
+      segment_by_duration(original_path, extension)
     else
       segment_by_chapters(original_path, chapters_metadata, extension)
     end
@@ -278,6 +284,31 @@ defmodule Sonnet.Workers.Ingester do
     Sonnet.Library.ingest_segmented!(segments_data, book_metadata, cover_s3_key)
   end
 
+  defp persist_single_file_ingestion(original_s3_key, segments, book_metadata, cover_s3_key) do
+    case upload_segments(segments) do
+      {:ok, segments_data} ->
+        case create_book_from_segments(segments_data, book_metadata, cover_s3_key) do
+          {:ok, _} ->
+            case delete_from_s3(original_s3_key) do
+              {:ok, _} ->
+                Sonnet.Library.broadcast_books_updated()
+                :ok
+
+              {:error, reason} ->
+                ingestion_error(:source_cleanup_failed, reason)
+            end
+
+          {:error, reason} ->
+            cleanup_single_file_failure(original_s3_key, segments_data, cover_s3_key)
+            ingestion_error(:book_creation_failed, reason)
+        end
+
+      {:error, reason} ->
+        cleanup_single_file_failure(original_s3_key, [], cover_s3_key)
+        ingestion_error(:segment_upload_failed, reason)
+    end
+  end
+
   defp calculate_file_hash(path) do
     File.stream!(path)
     |> Enum.reduce(:crypto.hash_init(:sha256), fn chunk, acc ->
@@ -359,13 +390,34 @@ defmodule Sonnet.Workers.Ingester do
     Sonnet.Storage.upload_file!(path, key)
   end
 
-  defp cleanup_fatal(s3_key) do
-    Sonnet.Storage.delete_object(s3_key)
-    Sonnet.Library.delete_media_asset_by_s3_key(s3_key)
+  defp cleanup_single_file_failure(original_s3_key, segments_data, cover_s3_key) do
+    cleanup_object(original_s3_key)
+
+    Enum.each(segments_data, fn %{s3_key: s3_key} ->
+      cleanup_object(s3_key)
+      Sonnet.Library.delete_media_asset_by_s3_key(s3_key)
+    end)
+
+    if cover_s3_key do
+      cleanup_object(cover_s3_key)
+    end
+
     :ok
   rescue
     e ->
-      Logger.warning("Cleanup failed for #{s3_key}: #{inspect(e)}")
+      Logger.warning("Cleanup failed for #{original_s3_key}: #{inspect(e)}")
       :ok
   end
+
+  defp cleanup_object(s3_key) do
+    case Sonnet.Storage.delete_object(s3_key) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Cleanup delete failed for #{s3_key}: #{inspect(reason)}")
+    end
+  end
+
+  defp ingestion_error(step, reason), do: {:error, {:ingestion_failed, step, reason}}
 end

@@ -15,7 +15,6 @@ defmodule Sonnet.Workers.MultiIngester do
 
       {:error, reason} ->
         Logger.error("Fatal error ingesting multi-file book: #{inspect(reason)}")
-        cleanup_fatal(s3_keys)
         {:error, reason}
     end
   end
@@ -23,8 +22,8 @@ defmodule Sonnet.Workers.MultiIngester do
   defp ingest_multi_files(s3_keys, original_filenames, book_metadata) do
     with {:ok, files_with_durations} <-
            probe_and_download_files(s3_keys, original_filenames),
-         {:ok, sorted_files} = sort_files(files_with_durations),
-         {:ok, media_assets} = create_media_assets(sorted_files),
+         {:ok, sorted_files} <- sort_files(files_with_durations),
+         {:ok, media_assets} <- create_media_assets(sorted_files),
          {:ok, _} <-
            create_book_and_chapters(
              sorted_files,
@@ -33,6 +32,10 @@ defmodule Sonnet.Workers.MultiIngester do
            ) do
       Sonnet.Library.broadcast_books_updated()
       :ok
+    else
+      {:error, reason} ->
+        cleanup_fatal(s3_keys)
+        ingestion_error(reason)
     end
   end
 
@@ -145,4 +148,6 @@ defmodule Sonnet.Workers.MultiIngester do
       Logger.warning("Cleanup failed for multi-file ingestion: #{inspect(e)}")
       :ok
   end
+
+  defp ingestion_error(reason), do: {:error, {:ingestion_failed, reason}}
 end

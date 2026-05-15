@@ -87,6 +87,7 @@ defmodule Sonnet.Library do
       end)
     end)
     |> Repo.transaction()
+    |> normalize_ingest_transaction_result()
   end
 
   def ingest_segmented!(
@@ -154,6 +155,13 @@ defmodule Sonnet.Library do
       end)
     end)
     |> Repo.transaction()
+    |> normalize_ingest_transaction_result()
+  end
+
+  defp normalize_ingest_transaction_result({:ok, changes}), do: {:ok, changes}
+
+  defp normalize_ingest_transaction_result({:error, failed_op, failed_value, changes}) do
+    {:error, {:transaction_failed, failed_op, failed_value, changes}}
   end
 
   def list_books(user_id \\ nil) do

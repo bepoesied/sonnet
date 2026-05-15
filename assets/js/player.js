@@ -53,6 +53,7 @@ class AudioPlayer {
     this.engine = new AudioEngine();
     this.csrf = document.querySelector("meta[name='csrf-token']")?.content;
     this.progressKey = `progress_${this.book.id}`;
+    this.progressSignature = this.buildProgressSignature();
 
     this.state = {
       chapter: null,
@@ -504,7 +505,13 @@ class AudioPlayer {
 
   getLocalStorageProgress() {
     try {
-      return JSON.parse(localStorage.getItem(this.progressKey));
+      const progress = JSON.parse(localStorage.getItem(this.progressKey));
+
+      if (!progress || progress.sig !== this.progressSignature) {
+        return null;
+      }
+
+      return progress;
     } catch (e) {
       return null;
     }
@@ -516,8 +523,19 @@ class AudioPlayer {
       JSON.stringify({
         cid,
         off,
+        sig: this.progressSignature,
         ts: ts || new Date().toISOString(),
       }),
+    );
+  }
+
+  buildProgressSignature() {
+    return JSON.stringify(
+      this.book.chapters.map((chapter) => [
+        chapter.id,
+        chapter.media_asset_id,
+        chapter.duration_ms,
+      ]),
     );
   }
 
