@@ -316,7 +316,10 @@ class AudioPlayer {
 
     this.handleSleepTimer(delta);
     this.updateMediaPosition();
-    this.save();
+
+    if (this.state.isPlaying) {
+      this.save();
+    }
   }
 
   updateSleepTimer(delta) {

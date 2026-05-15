@@ -14,15 +14,16 @@ export const progressSync = {
   },
 
   updateLocalStorageProgress(cid, off, ts) {
-    localStorage.setItem(
-      this.progressKey,
-      JSON.stringify({
-        cid,
-        off,
-        sig: this.progressSignature,
-        ts: ts || new Date().toISOString(),
-      }),
-    );
+    const progress = {
+      cid,
+      off,
+      sig: this.progressSignature,
+      ts: ts || new Date().toISOString(),
+    };
+
+    localStorage.setItem(this.progressKey, JSON.stringify(progress));
+
+    return progress;
   },
 
   buildProgressSignature() {
@@ -42,7 +43,7 @@ export const progressSync = {
   async save(force = false) {
     if (!this.state.chapter) return;
     const off = this.getCurrentPositionMs();
-    this.updateLocalStorageProgress(this.state.chapter.id, off);
+    const local = this.updateLocalStorageProgress(this.state.chapter.id, off);
 
     if (
       !force &&
@@ -52,9 +53,13 @@ export const progressSync = {
     }
 
     this.state.lastSync = Date.now();
+    return this.saveLocalToServer(local, force);
+  },
+
+  async saveLocalToServer(local, force = false) {
     return this.api(
       "progress",
-      { chapter_id: this.state.chapter.id, offset_ms: off },
+      { chapter_id: local.cid, offset_ms: local.off, updated_at: local.ts },
       force,
     );
   },
@@ -74,7 +79,7 @@ export const progressSync = {
         Date.now() - this.state.lastManualSeek < this.constructor.SEEK_LOCK_MS;
 
       if (this.shouldSyncLocalToServer(local, remote)) {
-        this.save();
+        await this.saveLocalToServer(local);
       } else if (this.shouldSyncServerToLocal(local, remote, seekLock)) {
         this.syncPositionFromServer(remote);
       }
