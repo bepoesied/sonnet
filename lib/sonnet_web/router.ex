@@ -33,6 +33,7 @@ defmodule SonnetWeb.Router do
   scope "/api", SonnetWeb.API do
     pipe_through [:api]
 
+    get "/mobile-config", AuthController, :mobile_config
     post "/auth/oidc-login", AuthController, :oidc_login
     post "/auth/token-refresh", AuthController, :refresh
     post "/auth/logout", AuthController, :delete

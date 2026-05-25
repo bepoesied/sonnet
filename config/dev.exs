@@ -9,7 +9,7 @@ config :sonnet,
   ingest_prefix: ""
 
 config :ex_aws, :s3,
-  host: "localhost",
+  host: "viper.lan.kmr.internal",
   scheme: "http://",
   region: "us-east-1",
   port: 3900
@@ -17,7 +17,7 @@ config :ex_aws, :s3,
 config :ueberauth_oidcc, :issuers, [
   %{
     name: :oidcc_issuer,
-    issuer: "http://localhost:8080/realms/dev",
+    issuer: "http://viper.lan.kmr.internal:8080/realms/dev",
     provider_configuration_opts: %{
       quirks: %{
         allow_unsafe_http: true,
@@ -42,12 +42,17 @@ config :ueberauth_oidcc, :providers,
     callback_path: "/auth/oidc/callback"
   ]
 
+config :sonnet, :mobile_oidc,
+  issuer_name: :oidcc_issuer,
+  client_id: "sonnet-dev-mobile"
+
 # Configure your database
 config :sonnet, Sonnet.Repo,
   username: "sonnet",
   password: "sonnet",
   hostname: "localhost",
   database: "sonnet_dev",
+  port: 5432,
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10

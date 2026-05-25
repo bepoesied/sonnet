@@ -34,6 +34,14 @@ if config_env() == :prod do
       uid_field: "sub"
     ]
 
+  mobile_oidc_config =
+    case System.get_env("SONNET_MOBILE_OIDCC_CLIENT_ID") do
+      nil -> [issuer_name: :oidcc_issuer]
+      client_id -> [issuer_name: :oidcc_issuer, client_id: client_id]
+    end
+
+  config :sonnet, :mobile_oidc, mobile_oidc_config
+
   config :ex_aws,
     access_key_id: System.fetch_env!("SONNET_S3_ACCESS_KEY_ID"),
     secret_access_key: System.fetch_env!("SONNET_S3_ACCESS_KEY_SECRET")

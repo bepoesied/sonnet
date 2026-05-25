@@ -2,8 +2,16 @@ defmodule SonnetWeb.API.AuthController do
   use SonnetWeb, :controller
 
   alias Sonnet.Accounts
+  alias Sonnet.MobileOIDC
   alias Sonnet.OIDCTokenVerifier
   alias SonnetWeb.UserSessionController
+
+  def mobile_config(conn, _params) do
+    case MobileOIDC.discovery() do
+      {:ok, config} -> json(conn, config)
+      {:error, _reason} -> render_error(conn, :oidc_unavailable)
+    end
+  end
 
   def oidc_login(conn, %{"id_token" => id_token}) do
     with {:ok, claims} <- OIDCTokenVerifier.verify_id_token(id_token),
@@ -46,6 +54,7 @@ defmodule SonnetWeb.API.AuthController do
   end
 
   defp status_for_error(error) when error in [:missing_token, :malformed_token], do: :bad_request
+  defp status_for_error(:oidc_unavailable), do: :service_unavailable
   defp status_for_error(_error), do: :unauthorized
 
   defp error_message(:missing_token), do: "missing_token"
@@ -55,5 +64,6 @@ defmodule SonnetWeb.API.AuthController do
   defp error_message(:expired_token), do: "expired_token"
   defp error_message(:missing_subject), do: "missing_subject"
   defp error_message(:invalid_signature), do: "invalid_signature"
+  defp error_message(:oidc_unavailable), do: "oidc_unavailable"
   defp error_message(_error), do: "invalid_token"
 end

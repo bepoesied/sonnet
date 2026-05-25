@@ -8,11 +8,11 @@ defmodule SonnetWeb.API.AuthControllerTest do
     jwk = JOSE.JWK.generate_key({:rsa, 2048})
     {_public_fields, public_jwk} = JOSE.JWK.to_public(jwk) |> JOSE.JWK.to_map()
     public_jwk = Map.put(public_jwk, "kid", "test-key")
+    client_context = client_context(public_jwk)
 
     Application.put_env(:sonnet, :mobile_oidc,
-      issuer: "https://issuer.example",
       client_id: "mobile-client",
-      jwks: %{"keys" => [public_jwk]}
+      client_context: client_context
     )
 
     on_exit(fn ->
@@ -115,6 +115,23 @@ defmodule SonnetWeb.API.AuthControllerTest do
     end
   end
 
+  describe "GET /api/mobile-config" do
+    test "returns OIDC discovery info for the mobile client", %{conn: conn} do
+      conn = get(json_conn(conn), ~p"/api/mobile-config")
+
+      assert json_response(conn, 200) == %{
+               "issuer" => "https://issuer.example",
+               "client_id" => "mobile-client",
+               "authorization_endpoint" => "https://issuer.example/authorize",
+               "token_endpoint" => nil,
+               "end_session_endpoint" => nil,
+               "scopes" => ["openid", "profile"],
+               "response_type" => "code",
+               "code_challenge_methods_supported" => nil
+             }
+    end
+  end
+
   describe "POST /api/auth/token-refresh" do
     test "rotates a refresh token on the API auth route", %{conn: conn} do
       user = user_fixture()
@@ -200,6 +217,7 @@ defmodule SonnetWeb.API.AuthControllerTest do
           "aud" => "mobile-client",
           "sub" => "mobile-sub",
           "exp" => System.system_time(:second) + 300,
+          "iat" => System.system_time(:second),
           "name" => "Mobile User"
         },
         overrides
@@ -209,5 +227,29 @@ defmodule SonnetWeb.API.AuthControllerTest do
     |> JOSE.JWT.sign(%{"alg" => "RS256", "kid" => "test-key"}, claims)
     |> JOSE.JWS.compact()
     |> elem(1)
+  end
+
+  defp client_context(public_jwk) do
+    {:ok, provider_configuration} =
+      Oidcc.ProviderConfiguration.decode_configuration(%{
+        "issuer" => "https://issuer.example",
+        "authorization_endpoint" => "https://issuer.example/authorize",
+        "jwks_uri" => "https://issuer.example/jwks",
+        "scopes_supported" => ["openid", "profile", "email"],
+        "response_types_supported" => ["code"],
+        "response_modes_supported" => ["query"],
+        "grant_types_supported" => ["authorization_code"],
+        "subject_types_supported" => ["public"],
+        "id_token_signing_alg_values_supported" => ["RS256"],
+        "token_endpoint_auth_methods_supported" => ["none"]
+      })
+
+    Oidcc.ClientContext.from_manual(
+      provider_configuration,
+      JOSE.JWK.from_map(%{"keys" => [public_jwk]}),
+      "mobile-client",
+      :unauthenticated,
+      %{}
+    )
   end
 end

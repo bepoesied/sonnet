@@ -43,6 +43,7 @@ in
   services.postgres = {
     enable = true;
     listen_addresses = "localhost";
+    port = 5432;
     initialScript = ''
       CREATE ROLE sonnet WITH SUPERUSER LOGIN PASSWORD 'sonnet';
     '';
@@ -52,9 +53,12 @@ in
     enable = true;
     buckets = [ "sonnet-dev" ];
     region = "us-east-1";
-    s3Address = "127.0.0.1:${toString garageS3UpstreamPort}";
+    s3Address = "0.0.0.0:${toString garageS3UpstreamPort}";
+    extraConfig = ''
+      replication_factor = 1
+    '';
     afterStart = ''
-      garage key import GKdevaccesskey001 dev-secret-key-abc123
+      garage key import GKdevaccesskey001 dev-secret-key-abc123 --yes
       garage bucket allow --key GKdevaccesskey001 --read --write sonnet-dev
     '';
   };
@@ -63,8 +67,8 @@ in
     enable = true;
     httpConfig = ''
       server {
-        listen 127.0.0.1:${toString garageNginxPort};
-        server_name garage.localhost;
+        listen 0.0.0.0:${toString garageNginxPort};
+        server_name viper.lan.kmr.internal;
         client_max_body_size 0;
 
         location / {
@@ -91,7 +95,7 @@ in
           proxy_set_header Connection "";
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           proxy_set_header X-Forwarded-Proto $scheme;
-          proxy_pass http://127.0.0.1:${toString config.processes.garage.ports.s3.value};
+          proxy_pass http://localhost:${toString garageS3UpstreamPort};
         }
       }
     '';
@@ -105,11 +109,9 @@ in
       import = true;
     };
     settings = {
-      hostname = "localhost";
-      http-host = "127.0.0.1";
+      hostname = "viper.lan.kmr.internal";
       http-port = 8080;
       https-port = 34429;
-      http-management-port = lib.mkForce 8081;
     };
   };
 

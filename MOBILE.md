@@ -11,6 +11,7 @@ Implemented endpoints:
 - `POST /api/auth/oidc-login`
 - `POST /api/auth/token-refresh`
 - `POST /api/auth/logout`
+- `GET /api/mobile-config`
 - `GET /api/me`
 - `GET /api/books`
 - `GET /api/books/:id`
@@ -21,8 +22,6 @@ Implemented endpoints:
 
 Not included in this milestone:
 
-- `GET /api/mobile-config` does not exist yet. Clients must receive OIDC
-  issuer, native client id, scopes, and redirect URI out-of-band.
 - There is no download-manifest endpoint. `GET /api/books/:id` is the
   download and playback detail contract.
 - The full library is not available offline. Only explicitly downloaded books
@@ -45,6 +44,20 @@ Mobile login uses native OIDC Authorization Code + PKCE:
 Sonnet does not receive or validate the PKCE verifier or challenge. Sonnet
 validates the `id_token` issuer, audience, signature/JWKS, expiry, and subject,
 then upserts the local user from OIDC claims and issues Sonnet API tokens.
+
+Server configuration:
+
+- `SONNET_OIDCC_ISSUER` is the provider issuer used for web and mobile token
+  validation.
+- `SONNET_OIDCC_CLIENT_ID` and `SONNET_OIDCC_CLIENT_SECRET` configure the
+  confidential web login client.
+- `SONNET_MOBILE_OIDCC_CLIENT_ID` optionally configures a separate public/native
+  mobile client. If omitted, Sonnet currently falls back to
+  `SONNET_OIDCC_CLIENT_ID`.
+- Sonnet uses a fixed scope set for mobile discovery and token validation so the
+  app contract cannot drift via environment configuration.
+- A separate public/native mobile client is preferred because the mobile app uses
+  PKCE and cannot hold a client secret.
 
 ### `POST /api/auth/oidc-login`
 
@@ -74,6 +87,29 @@ Errors use `{"error":"..."}`. Missing or malformed `id_token` returns `400`.
 Invalid issuer, audience, signature, expiry, or subject returns `401` with an
 error such as `invalid_issuer`, `invalid_audience`, `invalid_signature`,
 `expired_token`, `missing_subject`, or `invalid_token`.
+
+### `GET /api/mobile-config`
+
+Returns the OIDC metadata a native client needs to start Authorization Code +
+PKCE login when only the Sonnet API base URL is preconfigured.
+
+Success `200`:
+
+```json
+{
+  "issuer": "https://issuer.example",
+  "client_id": "sonnet-mobile",
+  "authorization_endpoint": "https://issuer.example/authorize",
+  "token_endpoint": "https://issuer.example/token",
+  "end_session_endpoint": "https://issuer.example/logout",
+  "scopes": ["openid", "profile"],
+  "response_type": "code",
+  "code_challenge_methods_supported": ["S256"]
+}
+```
+
+If Sonnet cannot resolve its OIDC provider configuration, it returns `503` with
+`{"error":"oidc_unavailable"}`.
 
 ### `POST /api/auth/token-refresh`
 
@@ -341,7 +377,6 @@ as display or debug detail.
 
 Potential future additions that are not part of this contract:
 
-- `GET /api/mobile-config` for self-hosted OIDC discovery.
 - Device/session metadata for per-device token revocation.
 - Pagination, search, or filtering for large libraries.
 - A route to refresh presigned URLs for a single chapter.
