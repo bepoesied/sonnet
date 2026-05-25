@@ -21,9 +21,17 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
-  config :ueberauth_oidcc, :issuers, [
+  issuers = [
     %{name: :oidcc_issuer, issuer: System.fetch_env!("SONNET_OIDCC_ISSUER")}
   ]
+
+  mobile_issuers =
+    case System.get_env("SONNET_MOBILE_OIDCC_ISSUER") do
+      nil -> []
+      mobile_issuer -> [%{name: :mobile_oidcc_issuer, issuer: mobile_issuer}]
+    end
+
+  config :ueberauth_oidcc, :issuers, issuers ++ mobile_issuers
 
   config :ueberauth_oidcc, :providers,
     oidc: [
@@ -34,10 +42,16 @@ if config_env() == :prod do
       uid_field: "sub"
     ]
 
+  mobile_issuer_name =
+    case System.get_env("SONNET_MOBILE_OIDCC_ISSUER") do
+      nil -> :oidcc_issuer
+      _ -> :mobile_oidcc_issuer
+    end
+
   mobile_oidc_config =
     case System.get_env("SONNET_MOBILE_OIDCC_CLIENT_ID") do
-      nil -> [issuer_name: :oidcc_issuer]
-      client_id -> [issuer_name: :oidcc_issuer, client_id: client_id]
+      nil -> [issuer_name: mobile_issuer_name]
+      client_id -> [issuer_name: mobile_issuer_name, client_id: client_id]
     end
 
   config :sonnet, :mobile_oidc, mobile_oidc_config

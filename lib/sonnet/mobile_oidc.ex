@@ -1,7 +1,6 @@
 defmodule Sonnet.MobileOIDC do
   @moduledoc false
 
-  @issuer_name :oidcc_issuer
   @scopes ["openid", "profile"]
 
   def discovery do
@@ -40,25 +39,14 @@ defmodule Sonnet.MobileOIDC do
   end
 
   defp client_context_from_config(mobile_config) do
-    client_id = Keyword.get(mobile_config, :client_id) || configured_web_client_id()
-    issuer_name = Keyword.get(mobile_config, :issuer_name, @issuer_name)
+    client_id = Keyword.get(mobile_config, :client_id)
+    issuer_name = Keyword.get(mobile_config, :issuer_name)
 
     if is_binary(client_id) and client_id != "" do
       Oidcc.ClientContext.from_configuration_worker(issuer_name, client_id, :unauthenticated)
     else
       {:error, :invalid_audience}
     end
-  end
-
-  defp configured_web_client_id do
-    oidc_provider_config()
-    |> Keyword.get(:client_id)
-  end
-
-  defp oidc_provider_config do
-    :ueberauth_oidcc
-    |> Application.get_env(:providers, [])
-    |> Keyword.get(:oidc, [])
   end
 
   defp undefined_to_nil(:undefined), do: nil

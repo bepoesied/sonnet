@@ -47,13 +47,16 @@ then upserts the local user from OIDC claims and issues Sonnet API tokens.
 
 Server configuration:
 
-- `SONNET_OIDCC_ISSUER` is the provider issuer used for web and mobile token
-  validation.
+- `SONNET_OIDCC_ISSUER` is the provider issuer used for web token validation.
 - `SONNET_OIDCC_CLIENT_ID` and `SONNET_OIDCC_CLIENT_SECRET` configure the
   confidential web login client.
-- `SONNET_MOBILE_OIDCC_CLIENT_ID` optionally configures a separate public/native
-  mobile client. If omitted, Sonnet currently falls back to
-  `SONNET_OIDCC_CLIENT_ID`.
+- `SONNET_MOBILE_OIDCC_ISSUER` optionally configures a separate OIDC issuer URL
+  for mobile PKCE login. Some providers (e.g., Authentik) issue different
+  issuer URLs per application. If omitted, the mobile client uses the same
+  issuer as `SONNET_OIDCC_ISSUER`.
+- `SONNET_MOBILE_OIDCC_CLIENT_ID` configures the public/native mobile OIDC
+  client ID. Required for mobile authentication; there is no fallback to the
+  web client ID.
 - Sonnet uses a fixed scope set for mobile discovery and token validation so the
   app contract cannot drift via environment configuration.
 - A separate public/native mobile client is preferred because the mobile app uses

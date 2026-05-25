@@ -47,9 +47,13 @@ environment.
   `https://accounts.google.com`).
 - `SONNET_OIDCC_CLIENT_ID`: Your confidential web OIDC client ID.
 - `SONNET_OIDCC_CLIENT_SECRET`: Your confidential web OIDC client secret.
-- `SONNET_MOBILE_OIDCC_CLIENT_ID`: (Optional) A separate public/native OIDC
-  client ID for mobile PKCE login. If omitted, Sonnet falls back to
-  `SONNET_OIDCC_CLIENT_ID`.
+- `SONNET_MOBILE_OIDCC_ISSUER`: (Optional) A separate OIDC issuer URL for mobile
+  PKCE login. Some providers (e.g., Authentik) issue different issuer URLs per
+  application. If omitted, the mobile client uses the same issuer as
+  `SONNET_OIDCC_ISSUER`.
+- `SONNET_MOBILE_OIDCC_CLIENT_ID`: A public/native OIDC client ID for mobile
+  PKCE login. Required for mobile authentication; there is no fallback to the
+  web client ID.
 
 Sonnet exposes `GET /api/mobile-config` so a native mobile app can discover the
 issuer, client ID, authorization endpoint, and other OIDC metadata from the API
