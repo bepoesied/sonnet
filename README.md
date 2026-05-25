@@ -45,8 +45,19 @@ environment.
 
 - `SONNET_OIDCC_ISSUER`: The OIDC issuer URL (e.g.,
   `https://accounts.google.com`).
-- `SONNET_OIDCC_CLIENT_ID`: Your OIDC client ID.
-- `SONNET_OIDCC_CLIENT_SECRET`: Your OIDC client secret.
+- `SONNET_OIDCC_CLIENT_ID`: Your confidential web OIDC client ID.
+- `SONNET_OIDCC_CLIENT_SECRET`: Your confidential web OIDC client secret.
+- `SONNET_MOBILE_OIDCC_CLIENT_ID`: (Optional) A separate public/native OIDC
+  client ID for mobile PKCE login. If omitted, Sonnet falls back to
+  `SONNET_OIDCC_CLIENT_ID`.
+
+Sonnet exposes `GET /api/mobile-config` so a native mobile app can discover the
+issuer, client ID, authorization endpoint, and other OIDC metadata from the API
+server alone. The advertised mobile scopes are fixed by the server.
+
+If you configure a separate mobile OIDC client for PKCE login, register it as a
+public/native client with Authorization Code flow enabled and PKCE set to
+`S256`. Set the mobile redirect URI to `sonnet://auth/callback`.
 
 #### S3 Storage
 
@@ -84,6 +95,7 @@ docker run -p 4000:4000 \
   -e SONNET_OIDCC_ISSUER=... \
   -e SONNET_OIDCC_CLIENT_ID=... \
   -e SONNET_OIDCC_CLIENT_SECRET=... \
+  -e SONNET_MOBILE_OIDCC_CLIENT_ID=... \
   -e SONNET_S3_ACCESS_KEY_ID=... \
   -e SONNET_S3_ACCESS_KEY_SECRET=... \
   -e SONNET_S3_BUCKET=... \
