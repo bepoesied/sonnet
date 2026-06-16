@@ -21,7 +21,7 @@ jobs:
       file: "Containerfile"
       meta-images: |
         quay.io/drangon/sonnet
-        ghcr.io/drangon/sonnet
+        ghcr.io/bepoesied/sonnet
       meta-tags: |
         type=semver,pattern={{version}}
         type=semver,pattern={{major}}.{{minor}}
