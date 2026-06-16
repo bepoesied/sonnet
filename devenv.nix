@@ -5,7 +5,6 @@
 , ...
 }:
 let
-  pkgs-unstable = import inputs.nixpkgs-unstable { system = pkgs.stdenv.system; };
   garageNginxPort = 3900;
   garageS3UpstreamPort = 3904;
 in
@@ -15,7 +14,6 @@ in
     pkgs.nixd
     pkgs.watchman
     pkgs.hut
-    pkgs-unstable.opencode
     pkgs.ffmpeg
   ];
 
