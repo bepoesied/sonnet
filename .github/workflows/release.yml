@@ -1,32 +1,38 @@
-name: Build and Push
+name: Release
 
 on:
-  pull_request:
   release:
     types: [published]
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   build:
-    uses: docker/github-builder/.github/workflows/build.yml@v1
+    environment: quay
+    uses: docker/github-builder/.github/workflows/build.yml@5f637c833aa76bc99372a1dc9a6f8bcd8056fb85 # v1
     permissions:
       contents: read
       id-token: write
+      packages: write
     with:
       distribute: true
       output: image
       push: true
       platforms: linux/amd64,linux/arm64
-      meta-images: quay.io/drangon/sonnet
+      meta-images: |
+        quay.io/drangon/sonnet
+        ghcr.io/drangon/sonnet
       meta-tags: |
-        type=ref,event=pr
         type=semver,pattern={{version}}
         type=semver,pattern={{major}}.{{minor}}
-        type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+        type=raw,value=latest
     secrets:
       registry-auths: |
         - registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
+        - registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
