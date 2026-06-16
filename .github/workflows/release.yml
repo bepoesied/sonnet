@@ -5,20 +5,7 @@ on:
     types: [published]
 
 jobs:
-  fetch-quay:
-    runs-on: ubuntu-latest
-    environment: 
-      name: quay
-      deployment: false
-    outputs:
-      quay_user: ${{ secrets.QUAY_USERNAME }}
-      quay_pass: ${{ secrets.QUAY_PASSWORD }}
-    steps:
-      - name: Export Secrets
-        run: echo "Loaded Quay Environment"
   build:
-    needs:
-      - fetch-quay
     uses: docker/github-builder/.github/workflows/build.yml@5f637c833aa76bc99372a1dc9a6f8bcd8056fb85 # v1
     permissions:
       contents: read
@@ -39,8 +26,8 @@ jobs:
     secrets:
       registry-auths: |
         - registry: quay.io
-          username: ${{ needs.fetch-quay.outputs.quay_user }}
-          password: ${{ needs.fetch-quay.outputs.quay_pass }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
         - registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
