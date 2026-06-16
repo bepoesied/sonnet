@@ -18,7 +18,7 @@ jobs:
       platforms: linux/amd64,linux/arm64
       cache: true
       cache-mode: max
-      file: "{context}/Containerfile"
+      file: "Containerfile"
       meta-images: |
         quay.io/drangon/sonnet
         ghcr.io/drangon/sonnet
