@@ -73,7 +73,7 @@ defmodule Sonnet.MixProject do
       {:ueberauth_oidcc, "~> 0.4.2"},
       {:ex_aws, "~> 2.1"},
       {:ex_aws_s3, "~> 2.0"},
-      {:hackney, "~> 1.9"},
+      {:hackney, "~> 4.0"},
       {:sweet_xml, "~> 0.6"},
       {:ecto_psql_extras, "~> 0.6"},
       {:briefly, "~> 0.5.0"}
