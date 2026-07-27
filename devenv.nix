@@ -19,6 +19,7 @@ in
 
   languages.nix.enable = true;
   languages.elixir.enable = true;
+  languages.elixir.package = pkgs.beam29Packages.elixir_1_20;
   languages.javascript.enable = true;
 
   git-hooks.hooks = {
