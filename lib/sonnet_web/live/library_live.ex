@@ -65,17 +65,16 @@ defmodule SonnetWeb.LibraryLive do
           </.link>
         </div>
 
-        <div class="px-2 mb-6">
+        <form phx-change="search" class="px-2 mb-6">
           <input
             type="text"
             placeholder="Search by title or author..."
             value={@search}
-            phx-change="search"
             phx-debounce="300"
             name="term"
             class="input input-bordered w-full max-w-md"
           />
-        </div>
+        </form>
 
         <div
           id="books"
