@@ -9,6 +9,7 @@ defmodule SonnetWeb.LibraryLive do
 
     socket =
       socket
+      |> assign(:search, "")
       |> stream(:books, Library.list_books(user_id))
 
     {:ok, socket}
@@ -63,6 +64,17 @@ defmodule SonnetWeb.LibraryLive do
             <.icon name="hero-plus" class="size-6" />
           </.link>
         </div>
+
+        <form phx-change="search" class="px-2 mb-6">
+          <input
+            type="text"
+            placeholder="Search by title or author..."
+            value={@search}
+            phx-debounce="300"
+            name="term"
+            class="input input-bordered w-full max-w-md"
+          />
+        </form>
 
         <div
           id="books"
@@ -122,6 +134,24 @@ defmodule SonnetWeb.LibraryLive do
       </.modal>
     </Layouts.app>
     """
+  end
+
+  @impl true
+  def handle_event("search", %{"term" => term}, socket) do
+    user_id = socket.assigns.current_scope.user.id
+    term = String.trim(term)
+
+    books =
+      if term == "",
+        do: Library.list_books(user_id),
+        else: Library.search_books(user_id, term)
+
+    socket =
+      socket
+      |> assign(:search, term)
+      |> stream(:books, books, reset: true)
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -219,7 +249,13 @@ defmodule SonnetWeb.LibraryLive do
   @impl true
   def handle_info(:books_updated, socket) do
     user_id = socket.assigns.current_scope.user.id
-    {:noreply, stream(socket, :books, Library.list_books(user_id), reset: true)}
+
+    books =
+      if socket.assigns.search == "",
+        do: Library.list_books(user_id),
+        else: Library.search_books(user_id, socket.assigns.search)
+
+    {:noreply, stream(socket, :books, books, reset: true)}
   end
 
   defp progress_or_first_chapter_id(user_id, book) do

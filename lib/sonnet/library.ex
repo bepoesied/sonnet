@@ -179,6 +179,21 @@ defmodule Sonnet.Library do
     Repo.all(query)
   end
 
+  def search_books(user_id, term) do
+    pattern = "%#{String.downcase(term)}%"
+
+    from(b in Book,
+      left_join: lp in ListenProgress,
+      on: lp.book_id == b.id and lp.user_id == ^user_id,
+      where:
+        fragment("? like ?", fragment("lower(?)", b.title), ^pattern) or
+          fragment("? like ?", fragment("lower(?)", b.author), ^pattern),
+      select_merge: %{is_completed: fragment("coalesce(?, false)", lp.is_completed)},
+      order_by: [desc_nulls_last: lp.updated_at]
+    )
+    |> Repo.all()
+  end
+
   def get_book_with_status(id, user_id) do
     chapters_query = from c in Chapter, order_by: c.position, preload: [:media_asset]
 
