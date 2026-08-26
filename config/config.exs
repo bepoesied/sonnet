@@ -11,13 +11,12 @@ config :sonnet, Oban,
   engine: Oban.Engines.Basic,
   queues: [default: 10],
   repo: Sonnet.Repo,
-  plugins: [
-    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
-    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
-    {Oban.Plugins.Cron,
-     conf: [
-       {"@hourly", Sonnet.Workers.MediaAssetCleanup, args: %{}, max_attempts: 3}
-     ]}
+  pruner: [max_age: {7, :days}],
+  lifeline: [rescue_after: {30, :minutes}],
+  cron: [
+    crontab: [
+      {"@hourly", Sonnet.Workers.MediaAssetCleanup, args: %{}, max_attempts: 3}
+    ]
   ]
 
 config :sonnet, :scopes,
