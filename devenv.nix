@@ -15,12 +15,16 @@ in
     pkgs.watchman
     pkgs.hut
     pkgs.ffmpeg
+    pkgs.inotify-tools
+    pkgs.tailwindcss_4
   ];
 
   languages.nix.enable = true;
   languages.elixir.enable = true;
-  languages.elixir.package = pkgs.beam29Packages.elixir_1_20;
   languages.javascript.enable = true;
+  languages.javascript.directory = "./assets";
+  languages.javascript.npm.enable = true;
+  languages.javascript.npm.install.enable = true;
 
   git-hooks.hooks = {
     check-shebang-scripts-are-executable.enable = true;
@@ -53,9 +57,7 @@ in
     buckets = [ "sonnet-dev" ];
     region = "us-east-1";
     s3Address = "0.0.0.0:${toString garageS3UpstreamPort}";
-    extraConfig = ''
-      replication_factor = 1
-    '';
+    replicationFactor = 1;
     afterStart = ''
       garage key import GKdevaccesskey001 dev-secret-key-abc123 --yes
       garage bucket allow --key GKdevaccesskey001 --read --write sonnet-dev
@@ -67,7 +69,7 @@ in
     httpConfig = ''
       server {
         listen 0.0.0.0:${toString garageNginxPort};
-        server_name viper.lan.kmr.internal;
+        server_name localhost;
         client_max_body_size 0;
 
         location / {
@@ -108,8 +110,8 @@ in
       import = true;
     };
     settings = {
-      hostname = "viper.lan.kmr.internal";
-      http-port = 8080;
+      hostname = "localhost";
+      http-port = 38080;
       https-port = 34429;
     };
   };
@@ -127,4 +129,7 @@ in
       mix deps.get
     fi
   '';
+
+  devcontainer.enable = true;
+
 }

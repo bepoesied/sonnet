@@ -122,7 +122,8 @@ curl http://localhost:4000/health
 This project uses [devenv](https://devenv.sh/) to manage local development
 dependencies and tools.
 
-1. Run `devenv up` to start the required background services (PostgreSQL, etc.).
+1. Run `devenv up --mode all` to start the required background services
+   (PostgreSQL, etc.).
 1. In a new terminal, run `mix setup` to install dependencies and setup the
    database.
 1. Start the Phoenix server with `mix phx.server` or inside IEx with `iex -S mix
@@ -136,3 +137,6 @@ There are 2 debug consoles available:
    [`localhost:4001/dev/dashboard`](https://localhost:4001/dev/dashboard)
 1. The Oban Dashboard
    [`localhost:4001/dev/oban`](https://localhost:4001/dev/oban)
+
+To login to the app use `user` `user`. To configure keylcoak use `admin` `admin`
+if the default config does not meet your needs.
