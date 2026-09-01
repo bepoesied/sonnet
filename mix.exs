@@ -73,7 +73,7 @@ defmodule Sonnet.MixProject do
       {:ueberauth_oidcc, "~> 0.4.2"},
       {:ex_aws,
        github: "estebanz01/ex_aws",
-       ref: "b580ddfb901a288b934df238364639fbbdd2661c",
+       ref: "48785c61191355c1f893b5ace045139aa2eded82",
        override: true},
       {:ex_aws_s3, "~> 2.0"},
       {:hackney, "~> 4.0"},
