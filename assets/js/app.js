@@ -23,7 +23,7 @@ import "phoenix_html";
 import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/sonnet";
-import topbar from "../vendor/topbar";
+import topbar from "topbar";
 import Uploaders from "./uploaders";
 import { clearServiceWorkerCache } from "./player-cache";
 import "./player";

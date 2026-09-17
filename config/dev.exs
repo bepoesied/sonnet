@@ -76,9 +76,9 @@ config :sonnet, SonnetWeb.Endpoint,
   debug_errors: true,
   secret_key_base: "clMc/BHTzPlZMN2zMG4RWIyakTG9kcOFvjaHOSzi1mPsChUPaPWx1CIkwZ7oy9SX",
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:sonnet, ~w(--sourcemap=inline --watch)]},
-    esbuild: {Esbuild, :install_and_run, [:service_worker, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:sonnet, ~w(--watch)]}
+    esbuild: {Esbuild, :run, [:sonnet, ~w(--sourcemap=inline --watch)]},
+    esbuild: {Esbuild, :run, [:service_worker, ~w(--sourcemap=inline --watch)]},
+    tailwind: {Tailwind, :run, [:sonnet, ~w(--watch)]}
   ]
 
 # Watch static and templates for browser reloading.
@@ -112,6 +112,3 @@ config :phoenix_live_view,
   debug_attributes: true,
   # Enable helpful, but potentially expensive runtime checks
   enable_expensive_runtime_checks: true
-
-# Disable swoosh api client as it is only required for production adapters.
-config :swoosh, :api_client, false

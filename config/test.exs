@@ -34,12 +34,6 @@ config :sonnet, SonnetWeb.Endpoint,
   secret_key_base: "XGdsCRao0PeLReEbA5W9rf4KiAY3A9fBgYIsM55Q6BShu9+gl9QELpKEHBEactgr",
   server: false
 
-# In test we don't send emails
-config :sonnet, Sonnet.Mailer, adapter: Swoosh.Adapters.Test
-
-# Disable swoosh api client as it is only required for production adapters
-config :swoosh, :api_client, false
-
 # Print only warnings and errors during test
 config :logger, level: :warning
 

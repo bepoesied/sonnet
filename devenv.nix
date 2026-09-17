@@ -17,14 +17,24 @@ in
     pkgs.ffmpeg
     pkgs.inotify-tools
     pkgs.tailwindcss_4
+    pkgs.esbuild
+    pkgs.beam29Packages.hex
+    pkgs.beam29Packages.rebar3
   ];
 
   languages.nix.enable = true;
-  languages.elixir.enable = true;
-  languages.javascript.enable = true;
-  languages.javascript.directory = "./assets";
-  languages.javascript.npm.enable = true;
-  languages.javascript.npm.install.enable = true;
+  languages.elixir = {
+    enable = true;
+    package = pkgs.beam29Packages.elixir;
+    lsp.enable = true;
+    lsp.package = pkgs.beam29Packages.elixir-ls;
+  };
+  languages.javascript = {
+    enable = true;
+    directory = "./assets";
+    pnpm.enable = true;
+    pnpm.install.enable = true;
+  };
 
   git-hooks.hooks = {
     check-shebang-scripts-are-executable.enable = true;
@@ -116,12 +126,6 @@ in
     };
   };
 
-  enterShell = ''
-    # Install Hex and rebar if not already installed
-    mix local.hex --force --if-missing
-    mix local.rebar --force --if-missing
-  '';
-
   enterTest = ''
     # Ensure dependencies are fetched before running tests
     if [ -f mix.exs ]; then
@@ -129,7 +133,4 @@ in
       mix deps.get
     fi
   '';
-
-  devcontainer.enable = true;
-
 }

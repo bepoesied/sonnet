@@ -51,7 +51,6 @@ defmodule SonnetWeb.Router do
     put "/books/:id/incomplete", BookController, :incomplete
   end
 
-  # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:sonnet, :dev_routes) do
     import Phoenix.LiveDashboard.Router
 

@@ -1,14 +1,16 @@
-ARG ELIXIR_VERSION=1.18.4
-ARG OTP_VERSION=27.3.4.11
-ARG DEBIAN_VERSION=trixie-20260421-slim
-ARG NODE_VERSION=26.1.0
-ARG ALPINE_VERSION=3.23
+# https://bob.hex.pm/docker?repo=hexpm/elixir&os=debian&sort=elixir_version,erlang_version,os_version
+ARG ELIXIR_VERSION=1.20.4
+ARG OTP_VERSION=29.0.6
+ARG DEBIAN_VERSION=trixie-20260824-slim
+ARG NODE_VERSION=24
+ARG PNPM_VERSION=12
 
 ARG BUILDER_IMAGE="docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
-ARG NODE_BUILDER_IMAGE="docker.io/node:${NODE_VERSION}-alpine${ALPINE_VERSION}"
+ARG NODE_BUILDER_IMAGE="ghcr.io/pnpm/pnpm:${PNPM_VERSION}"
 ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}"
 
 FROM ${NODE_BUILDER_IMAGE} as node-builder
+RUN pnpm runtime set node ${NODE_VERSION} -g
 
 # prepare build dir
 RUN mkdir -p /app/assets
@@ -18,8 +20,8 @@ WORKDIR /app
 ENV NODE_ENV=prod
 
 # install npm dependencies
-COPY assets/package.json assets/package-lock.json ./assets/
-RUN npm --prefix assets ci
+COPY assets/package.json assets/pnpm-lock.yaml ./assets/
+RUN pnpm --prefix assets ci
 
 # build assets
 COPY assets assets
