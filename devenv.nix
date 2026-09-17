@@ -133,4 +133,6 @@ in
       mix deps.get
     fi
   '';
+
+  devcontainer.enable = true;
 }
