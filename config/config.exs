@@ -58,9 +58,9 @@ config :ueberauth, Ueberauth,
     }
   ]
 
-config :ex_aws, 
+config :ex_aws,
   http_client: ExAws.Request.Req,
-  req_options: [
+  req_opts: [
     connect_options: [
       transport_opts: [middlebox_comp_mode: false]
     ]
