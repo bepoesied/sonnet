@@ -58,7 +58,13 @@ config :ueberauth, Ueberauth,
     }
   ]
 
-config :ex_aws, http_client: ExAws.Request.Req
+config :ex_aws, 
+  http_client: ExAws.Request.Req,
+  req_options: [
+    connect_options: [
+      transport_opts: [middlebox_comp_mode: false]
+    ]
+  ]
 
 # Configure esbuild (the version is required)
 config :esbuild,
