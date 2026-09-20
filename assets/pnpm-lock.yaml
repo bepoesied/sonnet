@@ -1,15 +1,16 @@
-lockfileVersion: "9.0"
+lockfileVersion: '9.0'
 
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
 importers:
+
   .:
     dependencies:
       daisyui:
-        specifier: ^5.7.38
-        version: 5.7.38
+        specifier: ^5.7.40
+        version: 5.7.40
       heroicons:
         specifier: ^2.2.0
         version: 2.2.0
@@ -45,68 +46,40 @@ importers:
         version: 7.4.1
 
 packages:
-  daisyui@5.7.38:
-    resolution:
-      {
-        integrity: sha512-ef3RIbteKVmlQ10ak0l4mu8F70pBJ2UBjDJNsA2vWlpNdErpHqfxddxK2ckNNYd7vQvTqP4a1A1vSsunlCGVOw==,
-      }
+
+  daisyui@5.7.40:
+    resolution: {integrity: sha512-BKpx8Dat0CcQTW1iO4s6vAjQwffWaOI5wZ/+RidvM5MAyTF481l63Z14l67LXgRTFkA8YHmu+q146BiLlYtChA==}
 
   heroicons@2.2.0:
-    resolution:
-      {
-        integrity: sha512-yOwvztmNiBWqR946t+JdgZmyzEmnRMC2nxvHFC90bF1SUttwB6yJKYeme1JeEcBfobdOs827nCyiWBS2z/brog==,
-      }
+    resolution: {integrity: sha512-yOwvztmNiBWqR946t+JdgZmyzEmnRMC2nxvHFC90bF1SUttwB6yJKYeme1JeEcBfobdOs827nCyiWBS2z/brog==}
 
   idb@7.1.1:
-    resolution:
-      {
-        integrity: sha512-gchesWBzyvGHRO9W8tzUWFDycow5gwjvFKfyV9FF32Y7F50yZMp7mP+T2mJIWFx49zicqyC4uefHM17o6xKIVQ==,
-      }
+    resolution: {integrity: sha512-gchesWBzyvGHRO9W8tzUWFDycow5gwjvFKfyV9FF32Y7F50yZMp7mP+T2mJIWFx49zicqyC4uefHM17o6xKIVQ==}
 
   topbar@3.0.1:
-    resolution:
-      {
-        integrity: sha512-3CFWdkUC4KLsyLpW8IcX5EXskFtJtNl9O2/qNO/4Ncd/lWgipY/pmyv0D8bw2bTepl/+MUGhNhu2n3IitUuQNA==,
-      }
+    resolution: {integrity: sha512-3CFWdkUC4KLsyLpW8IcX5EXskFtJtNl9O2/qNO/4Ncd/lWgipY/pmyv0D8bw2bTepl/+MUGhNhu2n3IitUuQNA==}
 
   workbox-cacheable-response@7.4.1:
-    resolution:
-      {
-        integrity: sha512-8xaFoJdDc2OjrlbbL3gEeBO1WKcMwRqwLRupgqahYXu75yXajPLuwrbXMrIGZuWYXrQwk0xDjOxZ/ujCy/oJYw==,
-      }
+    resolution: {integrity: sha512-8xaFoJdDc2OjrlbbL3gEeBO1WKcMwRqwLRupgqahYXu75yXajPLuwrbXMrIGZuWYXrQwk0xDjOxZ/ujCy/oJYw==}
 
   workbox-core@7.4.1:
-    resolution:
-      {
-        integrity: sha512-DT+vu46eh/2vRsSHTY4Xmc32Z1rr9PRlQUXr1Dx30ZuXRWwOsvZgGgcwxcasubQLQmbTNYZjv44LkBAQ4tT5tQ==,
-      }
+    resolution: {integrity: sha512-DT+vu46eh/2vRsSHTY4Xmc32Z1rr9PRlQUXr1Dx30ZuXRWwOsvZgGgcwxcasubQLQmbTNYZjv44LkBAQ4tT5tQ==}
 
   workbox-expiration@7.4.1:
-    resolution:
-      {
-        integrity: sha512-lRKUF7b+OGbeXkQk1s6MHXOa3d7Xxf7Of31W6c6hCfipfIyrtdWZ89stq21AHZMaoG7VNFoHply4Ox+rU31TWg==,
-      }
+    resolution: {integrity: sha512-lRKUF7b+OGbeXkQk1s6MHXOa3d7Xxf7Of31W6c6hCfipfIyrtdWZ89stq21AHZMaoG7VNFoHply4Ox+rU31TWg==}
 
   workbox-range-requests@7.4.1:
-    resolution:
-      {
-        integrity: sha512-7i2oxAUE82gHdAJBCAQ04JzNOdRPqzuOzGfoUyJpFSmeqBNYGPrAH8GPoPjUQTfp+NycwrD2H68VtuF8qxv0vQ==,
-      }
+    resolution: {integrity: sha512-7i2oxAUE82gHdAJBCAQ04JzNOdRPqzuOzGfoUyJpFSmeqBNYGPrAH8GPoPjUQTfp+NycwrD2H68VtuF8qxv0vQ==}
 
   workbox-routing@7.4.1:
-    resolution:
-      {
-        integrity: sha512-yubJGErZOusuidAenaL5ypfhQOa7urxP/f8E0ws7FPb4039RiWXUWBAyUkmUoOL/BcQGen3h0J8872d51IYxtA==,
-      }
+    resolution: {integrity: sha512-yubJGErZOusuidAenaL5ypfhQOa7urxP/f8E0ws7FPb4039RiWXUWBAyUkmUoOL/BcQGen3h0J8872d51IYxtA==}
 
   workbox-strategies@7.4.1:
-    resolution:
-      {
-        integrity: sha512-GZxpaw9NbmOelj7667uZ2kpk5BFpOGbO4X0qjwh5ls8XQ8C+Lha5LQchTiUzsTFSS+NlUpftYAyOVXvQUrcqOQ==,
-      }
+    resolution: {integrity: sha512-GZxpaw9NbmOelj7667uZ2kpk5BFpOGbO4X0qjwh5ls8XQ8C+Lha5LQchTiUzsTFSS+NlUpftYAyOVXvQUrcqOQ==}
 
 snapshots:
-  daisyui@5.7.38: {}
+
+  daisyui@5.7.40: {}
 
   heroicons@2.2.0: {}
 
