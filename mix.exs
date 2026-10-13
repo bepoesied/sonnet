@@ -61,7 +61,7 @@ defmodule Sonnet.MixProject do
       {:oban, "~> 2.17"},
       {:oban_web, "~> 2.11"},
       {:ffmpex, "~> 0.10"},
-      {:ueberauth, "~> 0.10.8"},
+      {:ueberauth, "~> 0.11.0"},
       {:ueberauth_oidcc, "~> 0.4.2"},
       {:ex_aws, "~> 2.7"},
       {:ex_aws_s3, "~> 2.0"},
