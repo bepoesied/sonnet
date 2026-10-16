@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       daisyui:
-        specifier: ^5.7.47
-        version: 5.7.47
+        specifier: ^5.7.50
+        version: 5.7.50
       heroicons:
         specifier: ^2.2.0
         version: 2.2.0
@@ -47,8 +47,8 @@ importers:
 
 packages:
 
-  daisyui@5.7.47:
-    resolution: {integrity: sha512-NOl4vPifelRqB3CMzoU751zc44KCDD9HdHMTTqQ30uiYVpIyK7+s94/ySDWgYqjdl1tQCaCrgGBx4KCizm+a3Q==}
+  daisyui@5.7.50:
+    resolution: {integrity: sha512-+/LRqnTCoc7s/bJEKKwtJSwzeXCVdAmRdNmZeZzgHCaQ9PJyl7j+2V2U32GQDMyD+VDkP9e/+JGoC72Y1hLk7w==}
 
   heroicons@2.2.0:
     resolution: {integrity: sha512-yOwvztmNiBWqR946t+JdgZmyzEmnRMC2nxvHFC90bF1SUttwB6yJKYeme1JeEcBfobdOs827nCyiWBS2z/brog==}
@@ -79,7 +79,7 @@ packages:
 
 snapshots:
 
-  daisyui@5.7.47: {}
+  daisyui@5.7.50: {}
 
   heroicons@2.2.0: {}
 
