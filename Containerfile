@@ -1,7 +1,7 @@
 # https://bob.hex.pm/docker?repo=hexpm/elixir&os=debian&sort=elixir_version,erlang_version,os_version
 ARG ELIXIR_VERSION=1.20.4
-ARG OTP_VERSION=29.0.6
-ARG DEBIAN_VERSION=trixie-20260824-slim
+ARG OTP_VERSION=29.1.1
+ARG DEBIAN_VERSION=trixie-20261005-slim
 ARG NODE_VERSION=24
 ARG PNPM_VERSION=12
 
