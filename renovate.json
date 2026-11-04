@@ -5,5 +5,5 @@
     ":disableRateLimiting",
     ":disableDependencyDashboard"
   ],
-  "constraints": { "erlang": "^27" }
+  "constraints": { "erlang": "27" }
 }
