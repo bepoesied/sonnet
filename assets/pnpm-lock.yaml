@@ -8,8 +8,8 @@ importers:
   .:
     dependencies:
       daisyui:
-        specifier: ^5.7.38
-        version: 5.7.50
+        specifier: ^5.8.0
+        version: 5.8.0
       heroicons:
         specifier: ^2.2.0
         version: 2.2.0
@@ -26,29 +26,29 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1
       workbox-cacheable-response:
-        specifier: ^7.4.0
+        specifier: ^7.4.1
         version: 7.4.1
       workbox-core:
-        specifier: ^7.4.0
+        specifier: ^7.4.1
         version: 7.4.1
       workbox-expiration:
-        specifier: ^7.4.0
+        specifier: ^7.4.1
         version: 7.4.1
       workbox-range-requests:
-        specifier: ^7.4.0
+        specifier: ^7.4.1
         version: 7.4.1
       workbox-routing:
-        specifier: ^7.4.0
+        specifier: ^7.4.1
         version: 7.4.1
       workbox-strategies:
-        specifier: ^7.4.0
+        specifier: ^7.4.1
         version: 7.4.1
 
 packages:
-  daisyui@5.7.50:
+  daisyui@5.8.0:
     resolution:
       {
-        integrity: sha512-+/LRqnTCoc7s/bJEKKwtJSwzeXCVdAmRdNmZeZzgHCaQ9PJyl7j+2V2U32GQDMyD+VDkP9e/+JGoC72Y1hLk7w==,
+        integrity: sha512-pIdff0OLXTgCNvbRZlY2W2qjCnJd7DgRLyTpzhHgg+JqMzVDsQoRzJXyDKyPCOUYvTFHlOt97+JCeGyxQav4Zw==,
       }
 
   heroicons@2.2.0:
@@ -106,7 +106,7 @@ packages:
       }
 
 snapshots:
-  daisyui@5.7.50: {}
+  daisyui@5.8.0: {}
 
   heroicons@2.2.0: {}
 
