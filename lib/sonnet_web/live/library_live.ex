@@ -10,6 +10,7 @@ defmodule SonnetWeb.LibraryLive do
     socket =
       socket
       |> assign(:search, "")
+      |> assign(:search_form, to_form(%{"term" => ""}))
       |> stream(:books, Library.list_books(user_id))
 
     {:ok, socket}
@@ -65,16 +66,26 @@ defmodule SonnetWeb.LibraryLive do
           </.link>
         </div>
 
-        <form phx-change="search" class="px-2 mb-6">
-          <input
-            type="text"
-            placeholder="Search by title or author..."
-            value={@search}
-            phx-debounce="300"
-            name="term"
-            class="input input-bordered w-full max-w-md"
-          />
-        </form>
+        <.form
+          for={@search_form}
+          id="library-search-form"
+          phx-change="search"
+          phx-submit="search"
+          class="px-2 mb-6"
+        >
+          <label class="input w-full max-w-md">
+            <.icon name="hero-magnifying-glass" class="size-4 opacity-50 shrink-0" />
+            <input
+              id="library-search-input"
+              type="search"
+              placeholder="Search by title or author..."
+              value={@search_form[:term].value}
+              phx-debounce="300"
+              name={@search_form[:term].name}
+              class="grow"
+            />
+          </label>
+        </.form>
 
         <div
           id="books"
@@ -104,14 +115,12 @@ defmodule SonnetWeb.LibraryLive do
             <.input field={@edit_form[:narrator]} type="text" label="Narrator" />
             <.input field={@edit_form[:description]} type="textarea" label="Description" rows="3" />
 
-            <div>
-              <label class="label">
-                <span class="label-text">Cover Image</span>
-              </label>
-              <label for={@uploads.cover.ref} phx-drop-target={@uploads.cover.ref}>
+            <div class="fieldset mb-2" phx-drop-target={@uploads.cover.ref}>
+              <label for={@uploads.cover.ref}>
+                <span class="label mb-1">Cover Image</span>
                 <.live_file_input
                   upload={@uploads.cover}
-                  class="file-input file-input-bordered w-full"
+                  class="file-input w-full"
                 />
               </label>
 
@@ -149,6 +158,7 @@ defmodule SonnetWeb.LibraryLive do
     socket =
       socket
       |> assign(:search, term)
+      |> assign(:search_form, to_form(%{"term" => term}))
       |> stream(:books, books, reset: true)
 
     {:noreply, socket}

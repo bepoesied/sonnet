@@ -2,19 +2,19 @@
   <div id="player-root" class="flex flex-col" data-book={Jason.encode!(@book_data)}>
     <div id="player-ui" class="hidden flex flex-col gap-8 py-4">
       <div class="w-full flex justify-center items-start px-2">
-        <div class="w-full max-w-[320px] aspect-square bg-neutral rounded-2xl overflow-hidden shadow-2xl ring-1 ring-base-content/10 transform transition-transform hover:scale-[1.02]">
+        <div class="w-full max-w-[320px] aspect-square bg-neutral rounded-2xl overflow-hidden shadow-2xl ring-1 ring-base-content/10 transition-transform hover:scale-[1.02]">
           <img
             :if={@book_data.cover_url}
             src={@book_data.cover_url}
             alt={@book_data.title}
-            class="w-full h-full object-cover"
+            class="size-full object-cover"
             crossorigin="anonymous"
           />
           <div
             :if={!@book_data.cover_url}
-            class="w-full h-full flex items-center justify-center bg-neutral text-neutral-content"
+            class="size-full flex items-center justify-center bg-neutral text-neutral-content"
           >
-            <.icon name="hero-book-open" class="w-12 h-12" />
+            <.icon name="hero-book-open" class="size-12" />
           </div>
         </div>
       </div>
@@ -165,7 +165,7 @@
 
     <div id="error" class="hidden min-h-[50vh] flex items-center justify-center p-4">
       <div class="alert alert-error max-w-md shadow-lg">
-        <.icon name="hero-x-circle" class="size-6 shadow-sm" />
+        <.icon name="hero-x-circle" class="size-6 shrink-0" />
         <span id="error-message">An error occurred</span>
       </div>
     </div>

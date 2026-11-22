@@ -88,8 +88,10 @@ defmodule SonnetWeb.CoreComponents do
       <.button phx-click="go" variant="primary">Send!</.button>
       <.button navigate={~p"/"}>Home</.button>
   """
-  attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :string
+  attr :rest, :global,
+    include: ~w(href navigate patch method download name value disabled form type)
+
+  attr :class, :any
   attr :variant, :string, values: ~w(primary)
   slot :inner_block, required: true
 
@@ -402,7 +404,7 @@ defmodule SonnetWeb.CoreComponents do
   You can customize the size and colors of the icons by setting
   width, height, and background color classes.
 
-  Icons are extracted from the `deps/heroicons` directory and bundled within
+  Icons are extracted from the `assets/node_modules/heroicons` directory and bundled within
   your compiled app.css by the plugin in `assets/vendor/heroicons.js`.
 
   ## Examples
@@ -503,11 +505,11 @@ defmodule SonnetWeb.CoreComponents do
               phx-key="escape"
               class="relative bg-base-100 p-6 sm:p-14 shadow-2xl rounded-2xl ring-1 ring-base-content/10 transition"
             >
-              <div class="absolute top-6 right-5">
+              <div class="absolute top-4 right-4">
                 <button
                   phx-click={JS.exec("data-cancel", to: "##{@id}")}
                   type="button"
-                  class="-m-3 flex-none p-3 opacity-20 hover:opacity-40"
+                  class="btn btn-sm btn-circle btn-ghost"
                   aria-label={gettext("close")}
                 >
                   <.icon name="hero-x-mark" class="size-5" />

@@ -3,14 +3,11 @@
     <h1 class="text-4xl font-bold tracking-tight sm:text-6xl">
       Welcome to Sonnet
     </h1>
-    <p class="mt-6 text-lg leading-8 text-zinc-600 dark:text-zinc-400">
+    <p class="mt-6 text-lg leading-8 text-base-content/70">
       Your personal audiobook library.
     </p>
     <div class="mt-10 flex items-center justify-center gap-x-6">
-      <.link
-        href={~p"/auth/oidc"}
-        class="rounded-md bg-zinc-900 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-zinc-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-      >
+      <.link href={~p"/auth/oidc"} class="btn btn-primary">
         Get started
       </.link>
     </div>

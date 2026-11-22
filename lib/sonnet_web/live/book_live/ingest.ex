@@ -40,9 +40,12 @@ defmodule SonnetWeb.BookLive.Ingest do
                 rows="3"
               />
 
-              <label for={@uploads.book.ref} phx-drop-target={@uploads.book.ref}>
-                <.live_file_input upload={@uploads.book} class="file-input" />
-              </label>
+              <div class="fieldset mb-2" phx-drop-target={@uploads.book.ref}>
+                <label for={@uploads.book.ref}>
+                  <span class="label mb-1">Audio File (.m4b, .m4a)</span>
+                  <.live_file_input upload={@uploads.book} class="file-input w-full" />
+                </label>
+              </div>
 
               <div
                 :for={entry <- @uploads.book.entries}

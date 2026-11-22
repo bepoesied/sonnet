@@ -39,13 +39,13 @@ defmodule SonnetWeb.BookLive.MultiIngest do
           <.input field={@form[:narrator]} type="text" label="Narrator (optional)" />
           <.input field={@form[:description]} type="textarea" label="Description (optional)" rows="3" />
 
-          <label for={@uploads.multi_book.ref} phx-drop-target={@uploads.multi_book.ref}>
-            <div class="label">
-              <span class="label-text">Audio Files (.mp3)</span>
-              <span class="label-text-alt">Each file becomes a chapter</span>
-            </div>
-            <.live_file_input upload={@uploads.multi_book} class="file-input" />
-          </label>
+          <div class="fieldset mb-2" phx-drop-target={@uploads.multi_book.ref}>
+            <label for={@uploads.multi_book.ref}>
+              <span class="label mb-1">Audio Files (.mp3)</span>
+              <.live_file_input upload={@uploads.multi_book} class="file-input w-full" />
+            </label>
+            <p class="label">Each file becomes a chapter</p>
+          </div>
 
           <div
             :for={entry <- @uploads.multi_book.entries}

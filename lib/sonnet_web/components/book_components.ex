@@ -15,68 +15,73 @@ defmodule SonnetWeb.BookComponents do
     <div
       id={@id}
       tabindex="0"
-      class="card bg-base-200 shadow-xl cursor-pointer transition-transform group focus:outline-none [@media(hover:hover)]:hover:scale-105 [@media(hover:none)]:focus:scale-105 focus-visible:scale-105 has-[:focus-visible]:scale-105"
+      class="card bg-base-200 shadow-xl cursor-pointer transition-transform group focus:outline-none hover:scale-105 [@media(hover:none)]:focus:scale-105 focus-visible:scale-105 has-focus-visible:scale-105"
     >
       <figure class="aspect-square relative overflow-hidden">
         <img
           :if={@book.cover_s3_key}
           src={Library.presigned_url(@book.cover_s3_key)}
           alt={@book.title}
-          class="w-full h-full object-cover"
+          class="size-full object-cover"
           crossorigin="anonymous"
         />
         <div
           :if={!@book.cover_s3_key}
-          class="w-full h-full flex items-center justify-center bg-neutral text-neutral-content"
+          class="size-full flex items-center justify-center bg-neutral text-neutral-content"
         >
-          <.icon name="hero-book-open" class="w-12 h-12" />
+          <.icon name="hero-book-open" class="size-12" />
         </div>
-        <div class="absolute inset-0 bg-black/40 opacity-0 transition-opacity flex items-center justify-center [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-[:focus-visible]:opacity-100">
+        <div class="absolute inset-0 bg-black/40 opacity-0 transition-opacity flex items-center justify-center group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-focus-visible:opacity-100">
           <.link
             navigate={~p"/player/#{@book.id}"}
             class="text-white hover:scale-110 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-white rounded-full"
+            aria-label={"Play #{@book.title}"}
           >
-            <.icon name="hero-play-circle" class="w-16 h-16" />
+            <.icon name="hero-play-circle" class="size-16" />
           </.link>
         </div>
 
         <div class="absolute top-2 right-2 z-10 flex gap-2">
           <.link
             patch={~p"/library/books/#{@book.id}/edit"}
-            class="text-white/70 hover:text-white opacity-0 transition-opacity [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-[:focus-visible]:opacity-100 focus:outline-none"
+            class="text-white/70 hover:text-white opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-focus-visible:opacity-100 focus:outline-none"
             title="Edit Book"
+            aria-label="Edit Book"
           >
-            <.icon name="hero-pencil" class="w-8 h-8" />
+            <.icon name="hero-pencil" class="size-8" />
           </.link>
           <button
             type="button"
             phx-click="delete_book"
             phx-value-id={@book.id}
             data-confirm="Are you sure you want to delete this book? This action cannot be undone."
-            class="text-red-400 hover:text-red-300 opacity-0 transition-opacity [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-[:focus-visible]:opacity-100 focus:outline-none"
+            class="cursor-pointer text-error hover:text-error/80 opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-focus-visible:opacity-100 focus:outline-none"
             title="Delete Book"
+            aria-label="Delete Book"
           >
-            <.icon name="hero-trash" class="w-8 h-8" />
+            <.icon name="hero-trash" class="size-8" />
           </button>
           <button
             :if={!@book.is_completed}
             type="button"
             phx-click="mark_complete"
             phx-value-id={@book.id}
-            class="text-white/70 hover:text-white opacity-0 transition-opacity [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-[:focus-visible]:opacity-100 focus:outline-none"
+            class="cursor-pointer text-white/70 hover:text-white opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:group-focus:opacity-100 group-focus-visible:opacity-100 group-has-focus-visible:opacity-100 focus:outline-none"
             title="Mark as Completed"
+            aria-label="Mark as Completed"
           >
-            <.icon name="hero-check-circle" class="w-8 h-8" />
+            <.icon name="hero-check-circle" class="size-8" />
           </button>
           <button
             :if={@book.is_completed}
             type="button"
             phx-click="mark_incomplete"
             phx-value-id={@book.id}
-            class="text-secondary bg-base-200 rounded-full hover:scale-110 transition-transform focus:outline-none"
+            class="cursor-pointer text-secondary bg-base-200 rounded-full hover:scale-110 transition-transform focus:outline-none"
             title="Mark as Incomplete"
+            aria-label="Mark as Incomplete"
           >
-            <.icon name="hero-check-circle-solid" class="w-8 h-8" />
+            <.icon name="hero-check-circle-solid" class="size-8" />
           </button>
         </div>
       </figure>

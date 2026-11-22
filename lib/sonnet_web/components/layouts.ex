@@ -74,17 +74,18 @@ defmodule SonnetWeb.Layouts do
             </div>
             <ul
               tabindex="0"
-              class="menu menu-sm dropdown-content bg-base-100 rounded-box z-[1] mt-3 w-52 p-2 shadow-xl border border-base-content/10"
+              class="menu menu-sm dropdown-content bg-base-100 rounded-box mt-3 w-52 p-2 shadow-xl border border-base-content/10"
             >
               <li>
                 <button
                   id="clear-cache"
+                  type="button"
                   phx-click={JS.dispatch("sonnet:clear-cache")}
                 >
                   <.icon name="hero-trash" class="size-4" /> Clear Cache
                 </button>
               </li>
-              <div class="divider my-0"></div>
+              <li></li>
               <li>
                 <.link href={~p"/users/log-out"} method="delete" class="text-error">
                   <.icon name="hero-arrow-right-on-rectangle" class="size-4" /> Logout
@@ -120,11 +121,7 @@ defmodule SonnetWeb.Layouts do
 
   def flash_group(assigns) do
     ~H"""
-    <div
-      id={@id}
-      aria-live="polite"
-      class="fixed top-4 right-4 z-50 flex flex-col gap-2 w-full max-w-sm"
-    >
+    <div id={@id} aria-live="polite">
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
 
@@ -158,7 +155,7 @@ defmodule SonnetWeb.Layouts do
   @doc """
   Provides dark vs light theme toggle based on themes defined in app.css.
 
-  See <head> in root.html.heex which applies the theme before page load.
+  See `assets/js/theme.js` for client-side theme persistence and system preference syncing.
   """
   def theme_toggle(assigns) do
     ~H"""
@@ -178,10 +175,11 @@ defmodule SonnetWeb.Layouts do
       </div>
       <ul
         tabindex="0"
-        class="dropdown-content z-[1] menu p-2 shadow-xl bg-base-100 rounded-box w-32 border border-base-content/10"
+        class="dropdown-content menu p-2 shadow-xl bg-base-100 rounded-box w-32 border border-base-content/10"
       >
         <li>
           <button
+            type="button"
             phx-click={JS.dispatch("phx:set-theme") |> JS.dispatch("sonnet:close-menu")}
             data-phx-theme="light"
           >
@@ -190,6 +188,7 @@ defmodule SonnetWeb.Layouts do
         </li>
         <li>
           <button
+            type="button"
             phx-click={JS.dispatch("phx:set-theme") |> JS.dispatch("sonnet:close-menu")}
             data-phx-theme="dark"
           >
@@ -198,6 +197,7 @@ defmodule SonnetWeb.Layouts do
         </li>
         <li>
           <button
+            type="button"
             phx-click={JS.dispatch("phx:set-theme") |> JS.dispatch("sonnet:close-menu")}
             data-phx-theme="system"
           >
