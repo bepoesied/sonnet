@@ -21,40 +21,29 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
-  issuers = [
-    %{name: :oidcc_issuer, issuer: System.fetch_env!("SONNET_OIDCC_ISSUER")}
-  ]
+  oidc_env! = fn primary, legacy ->
+    System.get_env(primary) || System.get_env(legacy) ||
+      raise "environment variable #{primary} is missing."
+  end
 
-  mobile_issuers =
-    case System.get_env("SONNET_MOBILE_OIDCC_ISSUER") do
-      nil -> []
-      mobile_issuer -> [%{name: :mobile_oidcc_issuer, issuer: mobile_issuer}]
+  mobile_redirect_uris =
+    case System.get_env("SONNET_MOBILE_REDIRECT_URIS") do
+      nil ->
+        ["sonnet://auth/callback"]
+
+      raw ->
+        raw
+        |> String.split(",", trim: true)
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
     end
 
-  config :ueberauth_oidcc, :issuers, issuers ++ mobile_issuers
+  config :sonnet, SonnetWeb.AuthController,
+    client_id: oidc_env!.("SONNET_OIDC_CLIENT_ID", "SONNET_OIDCC_CLIENT_ID"),
+    client_secret: oidc_env!.("SONNET_OIDC_CLIENT_SECRET", "SONNET_OIDCC_CLIENT_SECRET"),
+    mobile_redirect_uris: mobile_redirect_uris
 
-  config :ueberauth_oidcc, :providers,
-    oidc: [
-      issuer: :oidcc_issuer,
-      client_id: System.fetch_env!("SONNET_OIDCC_CLIENT_ID"),
-      client_secret: System.fetch_env!("SONNET_OIDCC_CLIENT_SECRET"),
-      scopes: ["openid", "profile"],
-      uid_field: "sub"
-    ]
-
-  mobile_issuer_name =
-    case System.get_env("SONNET_MOBILE_OIDCC_ISSUER") do
-      nil -> :oidcc_issuer
-      _ -> :mobile_oidcc_issuer
-    end
-
-  mobile_oidc_config =
-    case System.get_env("SONNET_MOBILE_OIDCC_CLIENT_ID") do
-      nil -> [issuer_name: mobile_issuer_name]
-      client_id -> [issuer_name: mobile_issuer_name, client_id: client_id]
-    end
-
-  config :sonnet, :mobile_oidc, mobile_oidc_config
+  config :sonnet, Sonnet.OIDC, issuer: oidc_env!.("SONNET_OIDC_ISSUER", "SONNET_OIDCC_ISSUER")
 
   config :ex_aws,
     access_key_id: System.fetch_env!("SONNET_S3_ACCESS_KEY_ID"),

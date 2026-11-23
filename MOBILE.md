@@ -1,17 +1,17 @@
 # Mobile API Contract
 
 This is the current mobile contract for Sonnet. It documents the implemented
-JSON API, native OIDC PKCE expectations, token lifecycle, and offline playback
-behavior for a native mobile client.
+JSON API, backend-mediated OIDC PKCE handoff expectations, token lifecycle, and
+offline playback behavior for a native mobile client.
 
 ## Scope
 
 Implemented endpoints:
 
-- `POST /api/auth/oidc-login`
+- `GET /auth/mobile/authorize`
+- `POST /api/auth/mobile/exchange`
 - `POST /api/auth/token-refresh`
 - `POST /api/auth/logout`
-- `GET /api/mobile-config`
 - `GET /api/me`
 - `GET /api/books`
 - `GET /api/books/:id`
@@ -29,50 +29,79 @@ Not included in this milestone:
 
 ## Authentication
 
-Mobile login uses native OIDC Authorization Code + PKCE:
+Mobile login uses a backend-mediated OIDC handoff protected by PKCE (`S256`) so
+Sonnet only requires a single confidential OIDC client for both web and mobile:
 
-1. The mobile app creates the temporary PKCE verifier, challenge, state, and
-   nonce for each login attempt.
-2. The app opens the provider authorization URL in the system browser or native
-   auth session, not an embedded webview.
-3. The provider redirects back to the app through the app's registered custom
-   scheme, universal link, or app link.
-4. The app exchanges the OIDC authorization code and PKCE verifier directly
-   with the OIDC provider.
-5. The app sends the resulting OIDC `id_token` to Sonnet.
-
-Sonnet does not receive or validate the PKCE verifier or challenge. Sonnet
-validates the `id_token` issuer, audience, signature/JWKS, expiry, and subject,
-then upserts the local user from OIDC claims and issues Sonnet API tokens.
+1. The mobile app creates a fresh RFC 7636 PKCE `code_verifier` (43–128
+   unreserved characters), derives `code_challenge = BASE64URL_NO_PAD(SHA256(code_verifier))`,
+   and generates a random CSRF `state` (16–512 unreserved characters).
+2. The app opens `GET /auth/mobile/authorize` in the system browser or native
+   auth session (`ASWebAuthenticationSession` / Chrome Custom Tabs), not an
+   embedded webview.
+3. Sonnet validates `redirect_uri`, `code_challenge_method=S256`,
+   `code_challenge`, and `state`, then runs standard confidential OIDC
+   Authorization Code + PKCE against the identity provider using Sonnet's single
+   HTTPS callback (`/auth/callback`).
+4. After validating the IdP callback and upserting the local user from OIDC
+   userinfo claims, Sonnet creates a short-lived (60s), single-use, PKCE-bound
+   handoff `code` (stored hashed with SHA-256) and redirects to
+   `<redirect_uri>?code=<code>&state=<state>` without leaving a web session in
+   the browser.
+5. The mobile app verifies `state` matches its login attempt and sends `code`,
+   `code_verifier`, and `redirect_uri` to `POST /api/auth/mobile/exchange` to
+   receive Sonnet API tokens.
 
 Server configuration:
 
-- `SONNET_OIDCC_ISSUER` is the provider issuer used for web token validation.
-- `SONNET_OIDCC_CLIENT_ID` and `SONNET_OIDCC_CLIENT_SECRET` configure the
-  confidential web login client.
-- `SONNET_MOBILE_OIDCC_ISSUER` optionally configures a separate OIDC issuer URL
-  for mobile PKCE login. Some providers (e.g., Authentik) issue different
-  issuer URLs per application. If omitted, the mobile client uses the same
-  issuer as `SONNET_OIDCC_ISSUER`.
-- `SONNET_MOBILE_OIDCC_CLIENT_ID` configures the public/native mobile OIDC
-  client ID. Required for mobile authentication; there is no fallback to the
-  web client ID.
-- Sonnet uses a fixed scope set for mobile discovery and token validation so the
-  app contract cannot drift via environment configuration.
-- A separate public/native mobile client is preferred because the mobile app uses
-  PKCE and cannot hold a client secret.
+- `SONNET_OIDC_ISSUER` is the single OIDC issuer URL shared by web and mobile.
+- `SONNET_OIDC_CLIENT_ID` and `SONNET_OIDC_CLIENT_SECRET` configure Sonnet's
+  single confidential OIDC client.
+- `SONNET_MOBILE_REDIRECT_URIS` optionally configures a comma-separated list of
+  exact allowlisted mobile redirect URIs (defaults to `sonnet://auth/callback`).
+- Register only `https://<PHX_HOST>/auth/callback` as the redirect URI in the
+  identity provider.
 
-### `POST /api/auth/oidc-login`
+### `GET /auth/mobile/authorize`
+
+Query parameters (all required):
+
+- `redirect_uri`: Exact match against Sonnet's allowlisted mobile redirect URIs
+  (e.g., `sonnet://auth/callback`).
+- `code_challenge`: Base64url-encoded (no padding) SHA-256 digest of
+  `code_verifier` (43 characters).
+- `code_challenge_method`: Must be `S256` (`plain` is rejected).
+- `state`: Random opaque URL-safe string (16–512 characters) echoed back on
+  redirect.
+
+Invalid parameters return `400 Bad Request` directly without redirecting to the
+identity provider or to an unvalidated URI.
+
+On callback success, Sonnet redirects with `302` and `Cache-Control: no-store`,
+`Referrer-Policy: no-referrer` to:
+
+```text
+sonnet://auth/callback?code=<one-time-handoff-code>&state=<state>
+```
+
+On callback failure, Sonnet redirects to:
+
+```text
+sonnet://auth/callback?error=authentication_failed&state=<state>
+```
+
+### `POST /api/auth/mobile/exchange`
 
 Request:
 
 ```json
 {
-  "id_token": "provider.jwt.id_token"
+  "code": "one-time-handoff-code",
+  "code_verifier": "rfc7636-pkce-code-verifier",
+  "redirect_uri": "sonnet://auth/callback"
 }
 ```
 
-Success `200`:
+Success `200` (with `Cache-Control: no-store`):
 
 ```json
 {
@@ -86,33 +115,13 @@ Success `200`:
 }
 ```
 
-Errors use `{"error":"..."}`. Missing or malformed `id_token` returns `400`.
-Invalid issuer, audience, signature, expiry, or subject returns `401` with an
-error such as `invalid_issuer`, `invalid_audience`, `invalid_signature`,
-`expired_token`, `missing_subject`, or `invalid_token`.
+Errors use `{"error":"..."}`:
 
-### `GET /api/mobile-config`
-
-Returns the OIDC metadata a native client needs to start Authorization Code +
-PKCE login when only the Sonnet API base URL is preconfigured.
-
-Success `200`:
-
-```json
-{
-  "issuer": "https://issuer.example",
-  "client_id": "sonnet-mobile",
-  "authorization_endpoint": "https://issuer.example/authorize",
-  "token_endpoint": "https://issuer.example/token",
-  "end_session_endpoint": "https://issuer.example/logout",
-  "scopes": ["openid", "profile"],
-  "response_type": "code",
-  "code_challenge_methods_supported": ["S256"]
-}
-```
-
-If Sonnet cannot resolve its OIDC provider configuration, it returns `503` with
-`{"error":"oidc_unavailable"}`.
+- Missing or non-string fields return `400` with `{"error":"invalid_request"}`.
+- Unknown, expired, already-used, PKCE-mismatched, or redirect-URI-mismatched
+  codes return `401` with `{"error":"invalid_grant"}`.
+- Codes are consumed atomically on the first exchange attempt (even if
+  `code_verifier` or `redirect_uri` is wrong) and expire after 60 seconds.
 
 ### `POST /api/auth/token-refresh`
 

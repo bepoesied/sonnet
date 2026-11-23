@@ -6,7 +6,7 @@ defmodule Sonnet.Accounts do
   import Ecto.Query, warn: false
   alias Sonnet.Repo
 
-  alias Sonnet.Accounts.{User, UserToken}
+  alias Sonnet.Accounts.{MobileAuthCode, User, UserToken}
 
   ## Database getters
   def get_user_by_sub(sub) when is_binary(sub) do
@@ -32,6 +32,19 @@ defmodule Sonnet.Accounts do
   ## User registration
 
   @doc """
+  Finds the local user for an OIDC subject, creating it when first seen and
+  refreshing display name and avatar URL from standard OIDC claims.
+  """
+  @spec upsert_user(map()) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  def upsert_user(userinfo) when is_map(userinfo) do
+    register_user(%{
+      sub: Map.get(userinfo, "sub"),
+      name: Map.get(userinfo, "name"),
+      avatar_url: Map.get(userinfo, "picture")
+    })
+  end
+
+  @doc """
   Registers a user.
 
   ## Examples
@@ -47,7 +60,7 @@ defmodule Sonnet.Accounts do
     %User{}
     |> User.oidc_changeset(attrs)
     |> Repo.insert(
-      on_conflict: {:replace_all_except, [:id, :inserted_at]},
+      on_conflict: {:replace, [:name, :avatar_url, :updated_at]},
       conflict_target: :sub,
       returning: true
     )
@@ -123,5 +136,100 @@ defmodule Sonnet.Accounts do
   def delete_user_refresh_token(token) do
     Repo.delete_all(from(UserToken, where: [token: ^token, context: "refresh"]))
     :ok
+  end
+
+  @doc """
+  Atomically consumes a valid refresh token and rotates it into a new
+  `{access_token, refresh_token}` pair.
+  """
+  def rotate_user_refresh_token(token) when is_binary(token) do
+    cutoff = DateTime.add(DateTime.utc_now(:second), -30, :day)
+
+    Repo.transaction(fn ->
+      query =
+        from t in UserToken,
+          where: t.token == ^token and t.context == "refresh",
+          select: t
+
+      case Repo.delete_all(query) do
+        {1, [%UserToken{user_id: user_id, inserted_at: inserted_at, authenticated_at: auth_at}]} ->
+          if DateTime.after?(inserted_at, cutoff) do
+            case Repo.get(User, user_id) do
+              %User{} = user ->
+                user = %{user | authenticated_at: auth_at}
+                {generate_user_session_token(user), generate_user_refresh_token(user)}
+
+              nil ->
+                Repo.rollback(:invalid_refresh_token)
+            end
+          else
+            Repo.rollback(:invalid_refresh_token)
+          end
+
+        _ ->
+          Repo.rollback(:invalid_refresh_token)
+      end
+    end)
+  end
+
+  ## Mobile OIDC Handoff Codes
+
+  @doc """
+  Creates a short-lived, single-use, PKCE-bound handoff code for mobile login.
+
+  Returns `{:ok, encoded_code}`. Only the SHA-256 hash of the code is stored in
+  the database.
+  """
+  def create_mobile_auth_code(%User{} = user, %{
+        code_challenge: code_challenge,
+        redirect_uri: redirect_uri
+      }) do
+    prune_expired_mobile_auth_codes()
+
+    {encoded_code, auth_code} =
+      MobileAuthCode.build(user, %{
+        code_challenge: code_challenge,
+        redirect_uri: redirect_uri
+      })
+
+    Repo.insert!(auth_code)
+    {:ok, encoded_code}
+  end
+
+  @doc """
+  Atomically consumes a mobile handoff code and validates expiration, exact
+  `redirect_uri`, and PKCE `S256` `code_verifier`.
+
+  The code is deleted atomically on the first redemption attempt — even if the
+  `code_verifier` or `redirect_uri` does not match — preventing replay,
+  brute-force retries, and concurrent exchange races.
+  """
+  def consume_mobile_auth_code(encoded_code, code_verifier, redirect_uri)
+      when is_binary(encoded_code) and is_binary(code_verifier) and is_binary(redirect_uri) do
+    with {:ok, code_hash} <- MobileAuthCode.hash_encoded_code(encoded_code),
+         {1, [%MobileAuthCode{} = auth_code]} <- delete_mobile_auth_code_by_hash(code_hash),
+         true <- DateTime.after?(auth_code.expires_at, DateTime.utc_now(:second)),
+         true <- MobileAuthCode.verify_redirect_uri(redirect_uri, auth_code.redirect_uri),
+         true <- MobileAuthCode.verify_pkce(code_verifier, auth_code.code_challenge),
+         %User{} = user <- Repo.get(User, auth_code.user_id) do
+      {:ok, user}
+    else
+      _ -> {:error, :invalid_grant}
+    end
+  end
+
+  def consume_mobile_auth_code(_, _, _), do: {:error, :invalid_grant}
+
+  @doc """
+  Deletes all expired mobile handoff codes.
+  """
+  def prune_expired_mobile_auth_codes(now \\ DateTime.utc_now(:second)) do
+    Repo.delete_all(from c in MobileAuthCode, where: c.expires_at <= ^now)
+    :ok
+  end
+
+  defp delete_mobile_auth_code_by_hash(code_hash) do
+    from(c in MobileAuthCode, where: c.code_hash == ^code_hash, select: c)
+    |> Repo.delete_all()
   end
 end

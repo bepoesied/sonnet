@@ -87,14 +87,14 @@ defmodule SonnetWeb.Layouts do
               </li>
               <li></li>
               <li>
-                <.link href={~p"/users/log-out"} method="delete" class="text-error">
+                <.link href={~p"/auth/logout"} method="delete" class="text-error">
                   <.icon name="hero-arrow-right-on-rectangle" class="size-4" /> Logout
                 </.link>
               </li>
             </ul>
           </div>
         <% else %>
-          <.link href={~p"/auth/oidc"} class="btn btn-primary btn-sm">Log in</.link>
+          <.link href={~p"/auth/authorize"} class="btn btn-primary btn-sm">Log in</.link>
         <% end %>
       </div>
     </header>

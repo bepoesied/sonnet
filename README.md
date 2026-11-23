@@ -43,25 +43,24 @@ environment.
 
 #### OIDC Authentication
 
-- `SONNET_OIDCC_ISSUER`: The OIDC issuer URL (e.g.,
-  `https://accounts.google.com`).
-- `SONNET_OIDCC_CLIENT_ID`: Your confidential web OIDC client ID.
-- `SONNET_OIDCC_CLIENT_SECRET`: Your confidential web OIDC client secret.
-- `SONNET_MOBILE_OIDCC_ISSUER`: (Optional) A separate OIDC issuer URL for mobile
-  PKCE login. Some providers (e.g., Authentik) issue different issuer URLs per
-  application. If omitted, the mobile client uses the same issuer as
-  `SONNET_OIDCC_ISSUER`.
-- `SONNET_MOBILE_OIDCC_CLIENT_ID`: A public/native OIDC client ID for mobile
-  PKCE login. Required for mobile authentication; there is no fallback to the
-  web client ID.
+- `SONNET_OIDC_ISSUER`: The OIDC issuer URL (e.g.,
+  `https://auth.example.com/application/o/sonnet/` or
+  `https://keycloak.example.com/realms/main`).
+- `SONNET_OIDC_CLIENT_ID`: Your confidential OIDC client ID (shared by web and
+  mobile).
+- `SONNET_OIDC_CLIENT_SECRET`: Your confidential OIDC client secret.
+- `SONNET_MOBILE_REDIRECT_URIS`: (Optional) Comma-separated list of exact
+  allowlisted mobile callback URIs (default: `sonnet://auth/callback`).
 
-Sonnet exposes `GET /api/mobile-config` so a native mobile app can discover the
-issuer, client ID, authorization endpoint, and other OIDC metadata from the API
-server alone. The advertised mobile scopes are fixed by the server.
+Sonnet uses a single confidential OIDC client for both web and mobile login.
+Register `https://<PHX_HOST>/auth/callback` as the redirect URI in your identity
+provider — mobile apps authenticate through Sonnet's backend handoff
+(`GET /auth/mobile/authorize` → `POST /api/auth/mobile/exchange`), so you do not
+need a second OIDC client or custom URL schemes registered in your IdP.
 
-If you configure a separate mobile OIDC client for PKCE login, register it as a
-public/native client with Authorization Code flow enabled and PKCE set to
-`S256`. Set the mobile redirect URI to `sonnet://auth/callback`.
+Legacy `SONNET_OIDCC_ISSUER`, `SONNET_OIDCC_CLIENT_ID`, and
+`SONNET_OIDCC_CLIENT_SECRET` environment variable names are still accepted as
+fallbacks.
 
 #### S3 Storage
 
@@ -96,10 +95,9 @@ docker run -p 4000:4000 \
   -e PHX_HOST=sonnet.example.com \
   -e DATABASE_URL=... \
   -e SECRET_KEY_BASE=... \
-  -e SONNET_OIDCC_ISSUER=... \
-  -e SONNET_OIDCC_CLIENT_ID=... \
-  -e SONNET_OIDCC_CLIENT_SECRET=... \
-  -e SONNET_MOBILE_OIDCC_CLIENT_ID=... \
+  -e SONNET_OIDC_ISSUER=... \
+  -e SONNET_OIDC_CLIENT_ID=... \
+  -e SONNET_OIDC_CLIENT_SECRET=... \
   -e SONNET_S3_ACCESS_KEY_ID=... \
   -e SONNET_S3_ACCESS_KEY_SECRET=... \
   -e SONNET_S3_BUCKET=... \
