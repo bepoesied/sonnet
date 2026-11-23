@@ -44,9 +44,9 @@ Sonnet only requires a single confidential OIDC client for both web and mobile:
    HTTPS callback (`/auth/callback`).
 4. After validating the IdP callback and upserting the local user from OIDC
    userinfo claims, Sonnet creates a short-lived (60s), single-use, PKCE-bound
-   handoff `code` (stored hashed with SHA-256) and redirects to
-   `<redirect_uri>?code=<code>&state=<state>` without leaving a web session in
-   the browser.
+   handoff `code` (`Phoenix.Token` encrypted, backed by a one-time `UserToken`
+   nonce) and redirects to `<redirect_uri>?code=<code>&state=<state>` without
+   leaving a web session in the browser.
 5. The mobile app verifies `state` matches its login attempt and sends `code`,
    `code_verifier`, and `redirect_uri` to `POST /api/auth/mobile/exchange` to
    receive Sonnet API tokens.

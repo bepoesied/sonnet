@@ -2,8 +2,6 @@ defmodule SonnetWeb.API.AuthControllerTest do
   use SonnetWeb.ConnCase, async: true
 
   alias Sonnet.Accounts
-  alias Sonnet.Accounts.MobileAuthCode
-  alias Sonnet.Repo
 
   describe "POST /api/auth/mobile/exchange" do
     test "exchanges a valid PKCE handoff code for Sonnet access and refresh tokens", %{conn: conn} do
@@ -114,7 +112,7 @@ defmodule SonnetWeb.API.AuthControllerTest do
         post(json_conn(conn), ~p"/api/auth/mobile/exchange", %{
           code: code,
           code_verifier: verifier,
-          redirect_uri: "exp://localhost:8081/--/auth/callback"
+          redirect_uri: "sonnet://other/callback"
         })
 
       assert json_response(bad_conn, 401) == %{"error" => "invalid_grant"}
@@ -132,16 +130,13 @@ defmodule SonnetWeb.API.AuthControllerTest do
     test "returns 401 invalid_grant for expired codes", %{conn: conn} do
       user = user_fixture()
       {verifier, challenge} = pkce_pair()
-      expired_at = DateTime.add(DateTime.utc_now(:second), -120, :second)
 
-      {code, struct} =
-        MobileAuthCode.build(
+      {:ok, code} =
+        Accounts.create_mobile_auth_code(
           user,
           %{code_challenge: challenge, redirect_uri: "sonnet://auth/callback"},
-          now: expired_at
+          signed_at: System.system_time(:second) - 120
         )
-
-      Repo.insert!(struct)
 
       resp =
         post(json_conn(conn), ~p"/api/auth/mobile/exchange", %{

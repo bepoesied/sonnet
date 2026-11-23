@@ -5,10 +5,7 @@ config :sonnet, Oban, testing: :manual
 config :sonnet, SonnetWeb.AuthController,
   client_id: "sonnet-test",
   client_secret: "test-client-secret",
-  mobile_redirect_uris: [
-    "sonnet://auth/callback",
-    "exp://localhost:8081/--/auth/callback"
-  ]
+  mobile_redirect_uris: ["sonnet://auth/callback"]
 
 config :sonnet, Sonnet.OIDC,
   start_worker: false,

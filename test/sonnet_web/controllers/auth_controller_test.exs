@@ -1,10 +1,12 @@
 defmodule SonnetWeb.AuthControllerTest do
   use SonnetWeb.ConnCase, async: true
 
+  import Ecto.Query
+
   alias Oidcc.Plug.AuthorizationCallback
   alias Oidcc.Plug.Authorize
   alias Sonnet.Accounts
-  alias Sonnet.Accounts.MobileAuthCode
+  alias Sonnet.Accounts.UserToken
   alias Sonnet.Repo
   alias SonnetWeb.AuthController
 
@@ -16,6 +18,10 @@ defmodule SonnetWeb.AuthControllerTest do
 
   defp valid_state do
     24 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
+  end
+
+  defp mobile_code_rows do
+    Repo.all(from t in UserToken, where: t.context == "mobile_code")
   end
 
   defp base_callback_conn(conn, session \\ %{}) do
@@ -86,20 +92,30 @@ defmodule SonnetWeb.AuthControllerTest do
   end
 
   describe "GET /auth/mobile/authorize validation" do
-    test "rejects disallowed redirect_uri before touching OIDC provider", %{conn: conn} do
+    test "rejects disallowed redirect_uri attempts before touching OIDC provider", %{conn: conn} do
       {_verifier, challenge} = pkce_pair()
 
-      conn =
-        get(conn, ~p"/auth/mobile/authorize", %{
-          "redirect_uri" => "https://evil.example/steal",
-          "code_challenge" => challenge,
-          "code_challenge_method" => "S256",
-          "state" => valid_state()
-        })
+      for bad_uri <- [
+            "https://evil.example/steal",
+            "sonnet://auth/callback/extra",
+            "sonnet://auth/callback?foo=bar",
+            "sonnet://auth/callback#frag",
+            "javascript:alert(1)"
+          ] do
+        resp =
+          get(build_conn(), ~p"/auth/mobile/authorize", %{
+            "redirect_uri" => bad_uri,
+            "code_challenge" => challenge,
+            "code_challenge_method" => "S256",
+            "state" => valid_state()
+          })
 
-      assert html_response(conn, 400) =~ "Sign-in failed"
-      assert get_resp_header(conn, "cache-control") == ["no-store"]
-      refute get_session(conn, :mobile_auth)
+        assert html_response(resp, 400) =~ "Sign-in failed"
+        assert get_resp_header(resp, "cache-control") == ["no-store"]
+        refute get_session(resp, :mobile_auth)
+      end
+
+      _ = conn
     end
 
     test "rejects plain PKCE method before touching OIDC provider", %{conn: conn} do
@@ -114,6 +130,19 @@ defmodule SonnetWeb.AuthControllerTest do
         })
 
       assert html_response(conn, 400) =~ "S256"
+      refute get_session(conn, :mobile_auth)
+    end
+
+    test "rejects malformed code_challenge before touching OIDC provider", %{conn: conn} do
+      conn =
+        get(conn, ~p"/auth/mobile/authorize", %{
+          "redirect_uri" => "sonnet://auth/callback",
+          "code_challenge" => "too-short",
+          "code_challenge_method" => "S256",
+          "state" => valid_state()
+        })
+
+      assert html_response(conn, 400) =~ "challenge"
       refute get_session(conn, :mobile_auth)
     end
 
@@ -227,7 +256,7 @@ defmodule SonnetWeb.AuthControllerTest do
       assert query["state"] == mobile_state
       refute Map.has_key?(query, "code")
       refute get_session(conn, :user_token)
-      assert Repo.all(MobileAuthCode) == []
+      assert mobile_code_rows() == []
     end
 
     test "rejects flow state mismatches and never falls back to web login", %{conn: conn} do
@@ -246,7 +275,7 @@ defmodule SonnetWeb.AuthControllerTest do
 
       assert html_response(conn1, 400) =~ "Sign-in failed"
       refute get_session(conn1, :user_token)
-      assert Repo.all(MobileAuthCode) == []
+      assert mobile_code_rows() == []
 
       # Case 2: mobile_auth in session, but mismatched flow_id in OIDC state
       conn2 =
@@ -265,7 +294,7 @@ defmodule SonnetWeb.AuthControllerTest do
 
       assert html_response(conn2, 400) =~ "Sign-in failed"
       refute get_session(conn2, :user_token)
-      assert Repo.all(MobileAuthCode) == []
+      assert mobile_code_rows() == []
 
       # Case 3: mobile_auth in session, but nil OIDC state
       conn3 =
@@ -283,7 +312,26 @@ defmodule SonnetWeb.AuthControllerTest do
 
       assert html_response(conn3, 400) =~ "Sign-in failed"
       refute get_session(conn3, :user_token)
-      assert Repo.all(MobileAuthCode) == []
+      assert mobile_code_rows() == []
+
+      # Case 4: non-allowlisted redirect_uri in session
+      conn4 =
+        build_conn()
+        |> base_callback_conn(%{
+          mobile_auth: %{
+            "flow_id" => "expected-flow",
+            "redirect_uri" => "https://evil.example/steal",
+            "code_challenge" => challenge,
+            "state" => valid_state()
+          }
+        })
+        |> put_private(Authorize.State, "mobile:expected-flow")
+        |> put_private(AuthorizationCallback, userinfo_result)
+        |> AuthController.callback(%{})
+
+      assert html_response(conn4, 400) =~ "Sign-in failed"
+      refute get_session(conn4, :user_token)
+      assert mobile_code_rows() == []
     end
   end
 

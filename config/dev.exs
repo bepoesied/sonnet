@@ -16,11 +16,7 @@ config :ex_aws, :s3,
 
 config :sonnet, SonnetWeb.AuthController,
   client_id: "sonnet-dev",
-  client_secret: "T1dDHQVaoiFAgQyBQx6Ue3NtG2UTDD01",
-  mobile_redirect_uris: [
-    "sonnet://auth/callback",
-    "exp://localhost:8081/--/auth/callback"
-  ]
+  client_secret: "T1dDHQVaoiFAgQyBQx6Ue3NtG2UTDD01"
 
 config :sonnet, Sonnet.OIDC,
   issuer: "http://localhost:38080/realms/dev",

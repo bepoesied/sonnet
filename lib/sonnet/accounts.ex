@@ -6,7 +6,12 @@ defmodule Sonnet.Accounts do
   import Ecto.Query, warn: false
   alias Sonnet.Repo
 
-  alias Sonnet.Accounts.{MobileAuthCode, User, UserToken}
+  alias Sonnet.Accounts.{User, UserToken}
+
+  @mobile_code_salt "mobile auth handoff"
+  @mobile_code_max_age 60
+  # RFC 7636 §4.1: unreserved characters, 43..128 bytes
+  @pkce_verifier_regex ~r/\A[A-Za-z0-9\-._~]{43,128}\z/
 
   ## Database getters
   def get_user_by_sub(sub) when is_binary(sub) do
@@ -175,43 +180,49 @@ defmodule Sonnet.Accounts do
   ## Mobile OIDC Handoff Codes
 
   @doc """
-  Creates a short-lived, single-use, PKCE-bound handoff code for mobile login.
-
-  Returns `{:ok, encoded_code}`. Only the SHA-256 hash of the code is stored in
-  the database.
+  Creates a short-lived (60s), single-use, PKCE-bound handoff code for mobile
+  login using `Phoenix.Token.encrypt/4` backed by a one-time `UserToken` nonce.
   """
-  def create_mobile_auth_code(%User{} = user, %{
-        code_challenge: code_challenge,
-        redirect_uri: redirect_uri
-      }) do
+  def create_mobile_auth_code(
+        %User{} = user,
+        %{code_challenge: code_challenge, redirect_uri: redirect_uri},
+        opts \\ []
+      ) do
     prune_expired_mobile_auth_codes()
 
-    {encoded_code, auth_code} =
-      MobileAuthCode.build(user, %{
-        code_challenge: code_challenge,
-        redirect_uri: redirect_uri
-      })
+    {nonce, user_token} = UserToken.build_mobile_code_token(user)
+    Repo.insert!(user_token)
 
-    Repo.insert!(auth_code)
-    {:ok, encoded_code}
+    code =
+      Phoenix.Token.encrypt(
+        SonnetWeb.Endpoint,
+        @mobile_code_salt,
+        %{nonce: nonce, code_challenge: code_challenge, redirect_uri: redirect_uri},
+        opts
+      )
+
+    {:ok, code}
   end
 
   @doc """
-  Atomically consumes a mobile handoff code and validates expiration, exact
-  `redirect_uri`, and PKCE `S256` `code_verifier`.
+  Atomically consumes a mobile handoff code and validates `Phoenix.Token`
+  authenticity/expiry, exact `redirect_uri`, and PKCE `S256` `code_verifier`.
 
-  The code is deleted atomically on the first redemption attempt — even if the
-  `code_verifier` or `redirect_uri` does not match — preventing replay,
-  brute-force retries, and concurrent exchange races.
+  The one-time `UserToken` nonce is deleted atomically on the first redemption
+  attempt — even if `code_verifier` or `redirect_uri` does not match —
+  preventing replay, brute-force retries, and concurrent exchange races.
   """
-  def consume_mobile_auth_code(encoded_code, code_verifier, redirect_uri)
-      when is_binary(encoded_code) and is_binary(code_verifier) and is_binary(redirect_uri) do
-    with {:ok, code_hash} <- MobileAuthCode.hash_encoded_code(encoded_code),
-         {1, [%MobileAuthCode{} = auth_code]} <- delete_mobile_auth_code_by_hash(code_hash),
-         true <- DateTime.after?(auth_code.expires_at, DateTime.utc_now(:second)),
-         true <- MobileAuthCode.verify_redirect_uri(redirect_uri, auth_code.redirect_uri),
-         true <- MobileAuthCode.verify_pkce(code_verifier, auth_code.code_challenge),
-         %User{} = user <- Repo.get(User, auth_code.user_id) do
+  def consume_mobile_auth_code(code, code_verifier, redirect_uri)
+      when is_binary(code) and is_binary(code_verifier) and is_binary(redirect_uri) do
+    with {:ok,
+          %{nonce: nonce, code_challenge: code_challenge, redirect_uri: expected_redirect_uri}} <-
+           Phoenix.Token.decrypt(SonnetWeb.Endpoint, @mobile_code_salt, code,
+             max_age: @mobile_code_max_age
+           ),
+         {1, [%UserToken{user_id: user_id}]} <- delete_mobile_code_nonce(nonce),
+         true <- Plug.Crypto.secure_compare(redirect_uri, expected_redirect_uri),
+         true <- verify_pkce_s256(code_verifier, code_challenge),
+         %User{} = user <- Repo.get(User, user_id) do
       {:ok, user}
     else
       _ -> {:error, :invalid_grant}
@@ -220,16 +231,27 @@ defmodule Sonnet.Accounts do
 
   def consume_mobile_auth_code(_, _, _), do: {:error, :invalid_grant}
 
-  @doc """
-  Deletes all expired mobile handoff codes.
-  """
-  def prune_expired_mobile_auth_codes(now \\ DateTime.utc_now(:second)) do
-    Repo.delete_all(from c in MobileAuthCode, where: c.expires_at <= ^now)
+  defp delete_mobile_code_nonce(nonce) when is_binary(nonce) do
+    from(t in UserToken, where: t.token == ^nonce and t.context == "mobile_code", select: t)
+    |> Repo.delete_all()
+  end
+
+  defp prune_expired_mobile_auth_codes do
+    cutoff = DateTime.add(DateTime.utc_now(:second), -@mobile_code_max_age, :second)
+
+    Repo.delete_all(
+      from t in UserToken, where: t.context == "mobile_code" and t.inserted_at <= ^cutoff
+    )
+
     :ok
   end
 
-  defp delete_mobile_auth_code_by_hash(code_hash) do
-    from(c in MobileAuthCode, where: c.code_hash == ^code_hash, select: c)
-    |> Repo.delete_all()
+  defp verify_pkce_s256(code_verifier, expected_challenge) do
+    if Regex.match?(@pkce_verifier_regex, code_verifier) do
+      computed = :crypto.hash(:sha256, code_verifier) |> Base.url_encode64(padding: false)
+      Plug.Crypto.secure_compare(computed, expected_challenge)
+    else
+      false
+    end
   end
 end
