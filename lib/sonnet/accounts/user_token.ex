@@ -73,6 +73,18 @@ defmodule Sonnet.Accounts.UserToken do
   end
 
   @doc """
+  Generates a single-use nonce token stored in `users_tokens` to enforce one-time
+  consumption of a `Phoenix.Token`-encrypted mobile auth handoff code.
+  """
+  def build_mobile_code_token(user) do
+    token = :crypto.strong_rand_bytes(@rand_size)
+    dt = user.authenticated_at || DateTime.utc_now(:second)
+
+    {token,
+     %UserToken{token: token, context: "mobile_code", user_id: user.id, authenticated_at: dt}}
+  end
+
+  @doc """
   Checks if the token is valid and returns its underlying lookup query.
 
   The query returns the user found by the token, if any, along with the token's creation time.

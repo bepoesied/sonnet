@@ -14,37 +14,23 @@ config :ex_aws, :s3,
   region: "us-east-1",
   port: 3900
 
-config :ueberauth_oidcc, :issuers, [
-  %{
-    name: :oidcc_issuer,
-    issuer: "http://localhost:38080/realms/dev",
-    provider_configuration_opts: %{
-      quirks: %{
-        allow_unsafe_http: true,
-        document_overrides: %{
-          "pushed_authorization_request_endpoint" => :undefined,
-          "token_endpoint_auth_methods_supported" => ["client_secret_basic"],
-          "introspection_endpoint_auth_methods_supported" => ["client_secret_basic"],
-          "request_object_signing_alg_values_supported" => ["none"]
-        }
+config :sonnet, SonnetWeb.AuthController,
+  client_id: "sonnet-dev",
+  client_secret: "T1dDHQVaoiFAgQyBQx6Ue3NtG2UTDD01"
+
+config :sonnet, Sonnet.OIDC,
+  issuer: "http://localhost:38080/realms/dev",
+  provider_configuration_opts: %{
+    quirks: %{
+      allow_unsafe_http: true,
+      document_overrides: %{
+        "pushed_authorization_request_endpoint" => :undefined,
+        "token_endpoint_auth_methods_supported" => ["client_secret_basic"],
+        "introspection_endpoint_auth_methods_supported" => ["client_secret_basic"],
+        "request_object_signing_alg_values_supported" => ["none"]
       }
     }
   }
-]
-
-config :ueberauth_oidcc, :providers,
-  oidc: [
-    issuer: :oidcc_issuer,
-    client_id: "sonnet-dev",
-    client_secret: "T1dDHQVaoiFAgQyBQx6Ue3NtG2UTDD01",
-    scopes: ["openid", "profile"],
-    uid_field: "sub",
-    callback_path: "/auth/oidc/callback"
-  ]
-
-config :sonnet, :mobile_oidc,
-  issuer_name: :oidcc_issuer,
-  client_id: "sonnet-dev-mobile"
 
 # Configure your database
 config :sonnet, Sonnet.Repo,

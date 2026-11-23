@@ -1757,6 +1757,7 @@
         "oauth2.device.authorization.grant.enabled": "false",
         "oidc.ciba.grant.enabled": "false",
         "post.logout.redirect.uris": "+",
+        "pkce.code.challenge.method": "S256",
         "realm_client": "false",
         "request.object.encryption.alg": "any",
         "request.object.encryption.enc": "any",
@@ -1783,12 +1784,12 @@
         "basic"
       ],
       "description": "",
-      "directAccessGrantsEnabled": true,
+      "directAccessGrantsEnabled": false,
       "enabled": true,
       "frontchannelLogout": true,
       "fullScopeAllowed": true,
       "id": "92d47479-ade2-445a-8972-44f7833a9fa7",
-      "implicitFlowEnabled": true,
+      "implicitFlowEnabled": false,
       "name": "Sonnet Dev",
       "nodeReRegistrationTimeout": -1,
       "notBefore": 0,
@@ -1803,7 +1804,8 @@
       "protocol": "openid-connect",
       "publicClient": false,
       "redirectUris": [
-        "https://localhost:4001/auth/oidc/callback"
+        "https://localhost:4001/auth/callback",
+        "http://localhost:4000/auth/callback"
       ],
       "rootUrl": "https://localhost:4001",
       "secret": "T1dDHQVaoiFAgQyBQx6Ue3NtG2UTDD01",
@@ -1812,65 +1814,6 @@
       "surrogateAuthRequired": false,
       "webOrigins": [
         "https://localhost:4001"
-      ]
-    },
-    {
-      "adminUrl": "",
-      "alwaysDisplayInConsole": false,
-      "attributes": {
-        "backchannel.logout.revoke.offline.tokens": "false",
-        "backchannel.logout.session.required": "true",
-        "dpop.bound.access.tokens": "false",
-        "oauth2.device.authorization.grant.enabled": "false",
-        "oauth2.jwt.authorization.grant.enabled": "false",
-        "oidc.ciba.grant.enabled": "false",
-        "pkce.code.challenge.method": "S256",
-        "realm_client": "false",
-        "standard.token.exchange.enabled": "false"
-      },
-      "authenticationFlowBindingOverrides": {},
-      "baseUrl": "",
-      "bearerOnly": false,
-      "clientAuthenticatorType": "client-secret",
-      "clientId": "sonnet-dev-mobile",
-      "consentRequired": false,
-      "defaultClientScopes": [
-        "web-origins",
-        "acr",
-        "profile",
-        "roles",
-        "basic",
-        "email"
-      ],
-      "description": "",
-      "directAccessGrantsEnabled": false,
-      "enabled": true,
-      "frontchannelLogout": true,
-      "fullScopeAllowed": true,
-      "id": "85e5dd85-bf95-4f62-be45-f82a4b035d8a",
-      "implicitFlowEnabled": false,
-      "name": "sonnet-dev-mobile",
-      "nodeReRegistrationTimeout": -1,
-      "notBefore": 0,
-      "optionalClientScopes": [
-        "address",
-        "phone",
-        "offline_access",
-        "organization",
-        "microprofile-jwt"
-      ],
-      "protocol": "openid-connect",
-      "publicClient": true,
-      "redirectUris": [
-        "exp://localhost:8081/--/auth/callback",
-        "sonnet://auth/callback"
-      ],
-      "rootUrl": "",
-      "serviceAccountsEnabled": false,
-      "standardFlowEnabled": true,
-      "surrogateAuthRequired": false,
-      "webOrigins": [
-        ""
       ]
     }
   ],
@@ -2595,8 +2538,7 @@
         }
       ],
       "security-admin-console": [],
-      "sonnet-dev": [],
-      "sonnet-dev-mobile": []
+      "sonnet-dev": []
     },
     "realm": [
       {

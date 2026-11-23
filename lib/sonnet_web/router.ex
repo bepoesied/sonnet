@@ -33,8 +33,7 @@ defmodule SonnetWeb.Router do
   scope "/api", SonnetWeb.API do
     pipe_through [:api]
 
-    get "/mobile-config", AuthController, :mobile_config
-    post "/auth/oidc-login", AuthController, :oidc_login
+    post "/auth/mobile/exchange", AuthController, :mobile_exchange
     post "/auth/token-refresh", AuthController, :refresh
     post "/auth/logout", AuthController, :delete
   end
@@ -79,12 +78,13 @@ defmodule SonnetWeb.Router do
     oban_dashboard("/oban")
   end
 
-  scope "/", SonnetWeb do
+  scope "/auth", SonnetWeb do
     pipe_through [:browser]
 
-    delete "/users/log-out", UserSessionController, :delete_web
-
-    get "/auth/:provider", AuthController, :request
-    get "/auth/:provider/callback", AuthController, :callback
+    get "/authorize", AuthController, :authorize
+    get "/mobile/authorize", AuthController, :mobile_authorize
+    get "/callback", AuthController, :callback
+    post "/callback", AuthController, :callback
+    delete "/logout", AuthController, :delete
   end
 end

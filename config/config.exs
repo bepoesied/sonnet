@@ -47,16 +47,9 @@ config :sonnet, SonnetWeb.Endpoint,
   pubsub_server: Sonnet.PubSub,
   live_view: [signing_salt: "VCWm51L4"]
 
-config :ueberauth, Ueberauth,
-  providers: [
-    oidc: {
-      Ueberauth.Strategy.Oidcc,
-      issuer: :oidcc_issuer,
-      scopes: ["openid", "profile", "email"],
-      userinfo: true,
-      validate_scopes: true
-    }
-  ]
+config :sonnet, SonnetWeb.AuthController,
+  provider: Sonnet.OIDC,
+  mobile_redirect_uris: ["sonnet://auth/callback"]
 
 config :ex_aws, http_client: ExAws.Request.Req
 

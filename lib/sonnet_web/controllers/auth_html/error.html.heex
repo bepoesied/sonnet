@@ -1,0 +1,18 @@
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <div id="auth-error" class="mx-auto max-w-md py-16 text-center space-y-6">
+    <div class="inline-flex size-12 items-center justify-center rounded-full bg-error/10 text-error">
+      <.icon name="hero-exclamation-triangle" class="size-6" />
+    </div>
+    <div class="space-y-2">
+      <h1 class="text-2xl font-bold tracking-tight">Sign-in failed</h1>
+      <p class="text-base-content/70">
+        {error_description(@reason)}
+      </p>
+    </div>
+    <div>
+      <.link href={~p"/"} class="btn btn-primary">
+        Return home
+      </.link>
+    </div>
+  </div>
+</Layouts.app>
