@@ -27,78 +27,55 @@ defmodule Sonnet.Library do
     )
   end
 
-  def delete_media_asset_by_s3_key(s3_key) do
-    from(m in MediaAsset, where: m.s3_key == ^s3_key)
-    |> Repo.delete_all()
+  @doc """
+  Returns `true` if `s3_key` is currently referenced by any chapter's media asset
+  or any book's cover.
+  """
+  def s3_key_referenced?(s3_key) when is_binary(s3_key) do
+    chapter_referenced? =
+      Repo.exists?(
+        from c in Chapter,
+          join: ma in MediaAsset,
+          on: c.media_asset_id == ma.id,
+          where: ma.s3_key == ^s3_key
+      )
+
+    chapter_referenced? or Repo.exists?(from b in Book, where: b.cover_s3_key == ^s3_key)
   end
 
-  def ingest_multi_file!(
-        s3_keys,
-        original_filenames,
-        media_assets,
-        durations,
-        book_metadata
-      ) do
+  def s3_key_referenced?(_), do: false
+
+  @doc """
+  Atomically creates a book, its media assets, its chapters, and any post-commit
+  source S3 cleanup jobs in a single database transaction.
+  """
+  def create_book_with_chapters(chapters_data, book_metadata, opts \\ [])
+
+  def create_book_with_chapters([], _book_metadata, _opts) do
+    {:error, {:permanent, :no_chapters}}
+  end
+
+  def create_book_with_chapters(chapters_data, book_metadata, opts) when is_list(chapters_data) do
+    book_metadata = book_metadata || %{}
+    cover_s3_key = Keyword.get(opts, :cover_s3_key)
+    source_keys_to_delete = Keyword.get(opts, :source_keys_to_delete, [])
+
     title = book_metadata["title"] || "Untitled Book"
     author = book_metadata["author"]
     narrator = book_metadata["narrator"]
     description = book_metadata["description"]
 
-    Multi.new()
-    |> Multi.insert(
-      :book,
-      Book.changeset(%Book{}, %{
-        title: title,
-        author: author,
-        narrator: narrator,
-        description: description
-      })
-    )
-    |> Multi.merge(fn %{book: book} ->
-      files_data =
-        Enum.zip([s3_keys, original_filenames, media_assets, durations])
-        |> Enum.with_index()
+    permanent_keys =
+      chapters_data
+      |> Enum.map(& &1.s3_key)
+      |> then(fn keys -> if cover_s3_key, do: [cover_s3_key | keys], else: keys end)
+      |> MapSet.new()
 
-      Enum.reduce(files_data, Multi.new(), fn {{_s3_key, original_filename, media_asset,
-                                                duration_ms}, index},
-                                              multi ->
-        name = "insert_chapter_#{index}"
-
-        cumulative_start =
-          files_data
-          |> Enum.take(index)
-          |> Enum.map(fn {{_, _, _, d}, _} -> d end)
-          |> Enum.sum()
-
-        cumulative_end = cumulative_start + duration_ms
-
-        chapter_changeset =
-          Chapter.changeset(%Chapter{}, %{
-            position: index,
-            title: Path.rootname(original_filename) || "Chapter #{index + 1}",
-            start_ms: cumulative_start,
-            end_ms: cumulative_end,
-            duration_ms: duration_ms,
-            book_id: book.id,
-            media_asset_id: media_asset.id
-          })
-
-        Multi.insert(multi, name, chapter_changeset)
-      end)
-    end)
-    |> Repo.transaction()
-    |> normalize_ingest_transaction_result()
-  end
-
-  def ingest_segmented!(
-        segments_data,
-        book_metadata,
-        cover_s3_key \\ nil
-      ) do
-    title = book_metadata["title"] || "Untitled Book"
-    author = book_metadata["author"]
-    narrator = book_metadata["narrator"]
-    description = book_metadata["description"]
+    cleanup_keys =
+      source_keys_to_delete
+      |> Enum.filter(&is_binary/1)
+      |> Enum.uniq()
+      |> Enum.reject(&MapSet.member?(permanent_keys, &1))
 
     Multi.new()
     |> Multi.insert(
@@ -112,50 +89,66 @@ defmodule Sonnet.Library do
       })
     )
     |> Multi.merge(fn %{book: book} ->
-      segments_data
-      |> Enum.with_index()
-      |> Enum.reduce(Multi.new(), fn {%{s3_key: s3_key, title: title, duration_ms: duration_ms},
-                                      index},
-                                     multi ->
-        asset_name = "get_or_insert_media_asset_#{index}"
-        chapter_name = "insert_chapter_#{index}"
-
-        Multi.insert(
-          multi,
-          asset_name,
-          MediaAsset.changeset(%MediaAsset{}, %{s3_key: s3_key}),
-          on_conflict: [set: [s3_key: s3_key]],
-          conflict_target: :s3_key,
-          returning: true
-        )
-        |> Multi.run(chapter_name, fn repo, %{^asset_name => asset} ->
-          chapter_title = title || "Chapter #{index + 1}"
-
-          cumulative_start =
-            segments_data
-            |> Enum.take(index)
-            |> Enum.map(& &1.duration_ms)
-            |> Enum.sum()
-
+      {chapters_multi, _total_ms} =
+        chapters_data
+        |> Enum.with_index()
+        |> Enum.reduce({Multi.new(), 0}, fn {%{
+                                               s3_key: s3_key,
+                                               title: chapter_title,
+                                               duration_ms: duration_ms
+                                             }, index},
+                                            {multi, cumulative_start} ->
+          asset_name = "get_or_insert_media_asset_#{index}"
+          chapter_name = "insert_chapter_#{index}"
           cumulative_end = cumulative_start + duration_ms
 
-          chapter_changeset =
-            Chapter.changeset(%Chapter{}, %{
-              position: index,
-              title: chapter_title,
-              start_ms: cumulative_start,
-              end_ms: cumulative_end,
-              duration_ms: duration_ms,
-              book_id: book.id,
-              media_asset_id: asset.id
-            })
+          updated_multi =
+            Multi.insert(
+              multi,
+              asset_name,
+              MediaAsset.changeset(%MediaAsset{}, %{s3_key: s3_key}),
+              on_conflict: [set: [s3_key: s3_key]],
+              conflict_target: :s3_key,
+              returning: true
+            )
+            |> Multi.run(chapter_name, fn repo, %{^asset_name => asset} ->
+              chapter_changeset =
+                Chapter.changeset(%Chapter{}, %{
+                  position: index,
+                  title: chapter_title || "Chapter #{index + 1}",
+                  start_ms: cumulative_start,
+                  end_ms: cumulative_end,
+                  duration_ms: duration_ms,
+                  book_id: book.id,
+                  media_asset_id: asset.id
+                })
 
-          repo.insert(chapter_changeset)
+              repo.insert(chapter_changeset)
+            end)
+
+          {updated_multi, cumulative_end}
         end)
-      end)
+
+      chapters_multi
     end)
+    |> enqueue_source_cleanup_jobs(cleanup_keys)
     |> Repo.transaction()
     |> normalize_ingest_transaction_result()
+  end
+
+  defp enqueue_source_cleanup_jobs(multi, cleanup_keys) do
+    cleanup_keys
+    |> Enum.with_index()
+    |> Enum.reduce(multi, fn {s3_key, index}, acc ->
+      Oban.insert(
+        acc,
+        "cleanup_source_#{index}",
+        Sonnet.Workers.S3ObjectCleanup.new(%{
+          "s3_key" => s3_key,
+          "only_if_unreferenced" => false
+        })
+      )
+    end)
   end
 
   defp normalize_ingest_transaction_result({:ok, changes}), do: {:ok, changes}
@@ -302,32 +295,66 @@ defmodule Sonnet.Library do
   end
 
   def update_book(id, attrs) do
-    id
-    |> get_book!()
-    |> Book.changeset(attrs)
-    |> Repo.update()
-    |> case do
-      {:ok, book} ->
-        broadcast_books_updated()
-        {:ok, book}
+    book = get_book!(id)
+    old_cover_key = book.cover_s3_key
 
-      {:error, changeset} ->
+    Multi.new()
+    |> Multi.update(:book, Book.changeset(book, attrs))
+    |> Multi.merge(fn %{book: updated_book} ->
+      if is_binary(old_cover_key) and old_cover_key != updated_book.cover_s3_key do
+        Oban.insert(
+          Multi.new(),
+          :cleanup_old_cover,
+          Sonnet.Workers.S3ObjectCleanup.new(%{
+            "s3_key" => old_cover_key,
+            "only_if_unreferenced" => true
+          })
+        )
+      else
+        Multi.new()
+      end
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{book: updated_book}} ->
+        broadcast_books_updated()
+        {:ok, updated_book}
+
+      {:error, :book, changeset, _changes} ->
         {:error, changeset}
     end
   end
 
   def delete_book(id) do
-    {count, _} =
-      from(b in Book, where: b.id == ^id)
-      |> Repo.delete_all()
-
-    case count do
-      0 ->
+    case Repo.get(Book, id) do
+      nil ->
         {:error, :not_found}
 
-      1 ->
-        broadcast_books_updated()
-        {:ok, nil}
+      book ->
+        multi = Multi.delete_all(Multi.new(), :delete_book, from(b in Book, where: b.id == ^id))
+
+        multi =
+          if is_binary(book.cover_s3_key) do
+            Oban.insert(
+              multi,
+              :cleanup_cover,
+              Sonnet.Workers.S3ObjectCleanup.new(%{
+                "s3_key" => book.cover_s3_key,
+                "only_if_unreferenced" => true
+              })
+            )
+          else
+            multi
+          end
+
+        case Repo.transaction(multi) do
+          {:ok, %{delete_book: {1, _}}} ->
+            broadcast_books_updated()
+            {:ok, nil}
+
+          {:ok, %{delete_book: {0, _}}} ->
+            {:error, :not_found}
+        end
     end
   end
 end

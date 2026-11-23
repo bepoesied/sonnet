@@ -138,38 +138,63 @@ defmodule SonnetWeb.BookLive.Ingest do
       |> String.split(["\n", "\r", "\r\n"], trim: true)
       |> Enum.map(&String.trim/1)
       |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
 
-    Sonnet.Ingestion.enqueue_bulk_keys(keys)
+    case keys do
+      [] ->
+        {:noreply, put_flash(socket, :error, "Please enter at least one S3 key")}
 
-    socket =
-      socket
-      |> put_flash(:info, "Started importing #{length(keys)} files")
-      |> assign(:bulk_form, to_form(%{"keys" => ""}, as: :bulk))
+      keys ->
+        results = Sonnet.Ingestion.enqueue_bulk_keys(keys)
+        enqueued_count = Enum.count(results, &match?({:ok, _}, &1))
+        failed_count = length(results) - enqueued_count
 
-    {:noreply, socket}
+        socket =
+          if failed_count == 0 do
+            put_flash(socket, :info, "Started importing #{enqueued_count} files")
+          else
+            put_flash(
+              socket,
+              :error,
+              "Queued #{enqueued_count} files, but #{failed_count} failed to enqueue"
+            )
+          end
+          |> assign(:bulk_form, to_form(%{"keys" => ""}, as: :bulk))
+
+        {:noreply, socket}
+    end
   end
 
   @impl true
   def handle_event("save", %{"book" => book_params}, socket) do
-    [uploaded_file] =
+    uploaded_files =
       consume_uploaded_entries(socket, :book, fn meta, entry ->
-        key = meta.key
-        client_name = entry.client_name
-        {:ok, %{key: key, client_name: client_name}}
+        {:ok, %{key: meta.key, client_name: entry.client_name}}
       end)
 
-    {:ok, _} =
-      Sonnet.Ingestion.enqueue_single_file(
-        uploaded_file.key,
-        uploaded_file.client_name,
-        book_params
-      )
+    case uploaded_files do
+      [uploaded_file] ->
+        case Sonnet.Ingestion.enqueue_single_file(
+               uploaded_file.key,
+               uploaded_file.client_name,
+               book_params
+             ) do
+          {:ok, _job} ->
+            {:noreply,
+             put_flash(socket, :info, "Successfully uploaded #{uploaded_file.client_name}")}
 
-    socket =
-      socket
-      |> put_flash(:info, "Successfully uploaded #{uploaded_file.client_name}")
+          {:error, _reason} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               "Failed to queue #{uploaded_file.client_name} for processing"
+             )}
+        end
 
-    {:noreply, socket}
+      [] ->
+        {:noreply, put_flash(socket, :error, "Please select a file to upload")}
+    end
   end
 
   defp at_least_onefile_selected?(upload) do

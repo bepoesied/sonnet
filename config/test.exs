@@ -6,7 +6,9 @@ config :sonnet, :ingest_bucket, "sonnet-test"
 
 config :ex_aws,
   access_key_id: "test-access-key",
-  secret_access_key: "test-secret-key"
+  secret_access_key: "test-secret-key",
+  retries: [max_attempts: 1],
+  req_opts: [plug: {Req.Test, Sonnet.Storage}]
 
 config :ex_aws, :s3,
   host: "localhost",

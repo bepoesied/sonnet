@@ -64,11 +64,30 @@ if config_env() == :prod do
     ingest_bucket: System.fetch_env!("SONNET_S3_BUCKET"),
     ingest_prefix: System.get_env("SONNET_S3_PREFIX", "")
 
+  ingest_concurrency =
+    case System.get_env("SONNET_INGEST_CONCURRENCY") do
+      nil -> 3
+      value -> max(String.to_integer(value), 1)
+    end
+
+  config :sonnet, Oban, queues: [default: 10, ingestion: ingest_concurrency]
+
+  s3_scheme = System.get_env("SONNET_S3_SCHEME", "https://")
+
   config :ex_aws, :s3,
     host: System.fetch_env!("SONNET_S3_HOST"),
-    scheme: System.get_env("SONNET_S3_SCHEME", "https://"),
+    scheme: s3_scheme,
     region: System.get_env("SONNET_S3_REGION", "us-east-1"),
     port: String.to_integer(System.get_env("SONNET_S3_PORT", "443"))
+
+  if s3_scheme == "https://" do
+    config :ex_aws,
+      req_opts: [
+        connect_options: [
+          transport_opts: [middlebox_comp_mode: false]
+        ]
+      ]
+  end
 
   database_url =
     System.get_env("DATABASE_URL") ||

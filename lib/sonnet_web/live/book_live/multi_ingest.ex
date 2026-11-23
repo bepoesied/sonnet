@@ -103,12 +103,16 @@ defmodule SonnetWeb.BookLive.MultiIngest do
         {:noreply, put_flash(socket, :error, "Please select at least one file")}
 
       files ->
-        Sonnet.Ingestion.enqueue_multi_file(files, book_params)
+        case Sonnet.Ingestion.enqueue_multi_file(files, book_params) do
+          {:ok, _job} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Processing #{length(files)} files...")
+             |> push_navigate(to: ~p"/library")}
 
-        {:noreply,
-         socket
-         |> put_flash(:info, "Processing #{length(files)} files...")
-         |> redirect(to: ~p"/library")}
+          {:error, _reason} ->
+            {:noreply, put_flash(socket, :error, "Failed to queue files for processing")}
+        end
     end
   end
 

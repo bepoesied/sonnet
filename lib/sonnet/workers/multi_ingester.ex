@@ -1,131 +1,200 @@
 defmodule Sonnet.Workers.MultiIngester do
-  use Oban.Worker, queue: :default, max_attempts: 3
+  @moduledoc """
+  Oban worker for multi-file audiobook ingestion (e.g., multiple `.mp3` chapters).
 
-  require Logger
+  Streams one file at a time (download -> probe -> promote to content-addressed `books/`
+  key -> delete local temp file) so disk usage stays bounded, and persists the book,
+  media assets, chapters, and staging cleanup jobs atomically.
+  """
+
+  use Oban.Worker,
+    queue: :ingestion,
+    max_attempts: 5,
+    unique: [
+      period: :infinity,
+      keys: [:s3_keys],
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
+
+  alias Sonnet.Ingestion.JobOutcome
+  alias Sonnet.Library
+  alias Sonnet.Media
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: args}) do
+  def perform(%Oban.Job{args: args} = job) do
     s3_keys = args["s3_keys"]
     original_filenames = args["original_filenames"]
     book_metadata = args["book_metadata"] || %{}
+    delete_source_on_failure? = Map.get(args, "delete_source_on_failure", false)
 
-    case ingest_multi_files(s3_keys, original_filenames, book_metadata) do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        Logger.error("Fatal error ingesting multi-file book: #{inspect(reason)}")
-        {:error, reason}
-    end
-  end
-
-  defp ingest_multi_files(s3_keys, original_filenames, book_metadata) do
-    with {:ok, files_with_durations} <-
-           probe_and_download_files(s3_keys, original_filenames),
-         {:ok, sorted_files} <- sort_files(files_with_durations),
-         {:ok, media_assets} <- create_media_assets(sorted_files),
-         {:ok, _} <-
-           create_book_and_chapters(
-             sorted_files,
-             media_assets,
-             book_metadata
-           ) do
-      Sonnet.Library.broadcast_books_updated()
-      :ok
-    else
-      {:error, reason} ->
-        cleanup_fatal(s3_keys)
-        ingestion_error(reason)
-    end
-  end
-
-  defp probe_and_download_files(s3_keys, original_filenames) do
-    results =
-      Enum.zip(s3_keys, original_filenames)
-      |> Enum.map(fn {s3_key, original_filename} ->
-        case probe_audio_duration(s3_key) do
-          {:ok, duration, path} ->
-            {:ok,
-             %{
-               s3_key: s3_key,
-               original_filename: original_filename,
-               duration_ms: duration,
-               path: path
-             }}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-      end)
-
-    errors = Enum.filter(results, fn {status, _} -> status == :error end)
-
-    if errors == [] do
-      files = Enum.map(results, fn {:ok, file} -> file end)
-      {:ok, files}
-    else
-      {:error, {:probe_failed, errors}}
-    end
-  end
-
-  defp probe_audio_duration(s3_key) do
-    with {:ok, path} <- Sonnet.Media.download_to_temp(s3_key),
-         {:ok, probe} <- Sonnet.Media.probe_file(path, false) do
-      case Sonnet.Media.duration_ms_from_probe(probe) do
-        0 -> {:error, :invalid_probe_output}
-        duration_ms -> {:ok, duration_ms, path}
-      end
-    else
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp sort_files(files_with_durations) do
-    {:ok, Enum.sort_by(files_with_durations, & &1.original_filename)}
-  end
-
-  defp create_media_assets(sorted_files) do
-    try do
-      media_assets =
-        Enum.map(sorted_files, fn %{s3_key: s3_key} ->
-          Sonnet.Library.create_media_asset!(s3_key)
+    with :ok <- validate_args(s3_keys, original_filenames) do
+      result =
+        Media.with_temp_dir(fn work_dir ->
+          ingest_multi_files(s3_keys, original_filenames, book_metadata, work_dir)
         end)
 
-      {:ok, media_assets}
-    rescue
-      e ->
-        {:error, {:media_asset_creation_failed, e}}
+      case result do
+        :ok ->
+          Library.broadcast_books_updated()
+          :ok
+
+        {:error, step, reason, uploaded_keys} ->
+          JobOutcome.handle_failure(job, step, reason,
+            uploaded_keys: uploaded_keys,
+            source_keys: s3_keys,
+            delete_source_on_failure: delete_source_on_failure?
+          )
+      end
+    else
+      {:error, reason} ->
+        {:cancel, {:ingestion_failed, :invalid_args, reason}}
     end
   end
 
-  defp create_book_and_chapters(sorted_files, media_assets, book_metadata) do
-    case Sonnet.Library.ingest_multi_file!(
-           Enum.map(sorted_files, & &1.s3_key),
-           Enum.map(sorted_files, & &1.original_filename),
-           media_assets,
-           Enum.map(sorted_files, & &1.duration_ms),
-           book_metadata
-         ) do
-      {:ok, _} ->
-        {:ok, :ok}
+  defp validate_args(s3_keys, original_filenames)
+       when is_list(s3_keys) and is_list(original_filenames) and
+              s3_keys != [] and length(s3_keys) == length(original_filenames) do
+    if Enum.all?(s3_keys, &(is_binary(&1) and &1 != "")) and
+         Enum.all?(original_filenames, &is_binary/1) do
+      :ok
+    else
+      {:error, :invalid_file_entries}
+    end
+  end
+
+  defp validate_args(_s3_keys, _original_filenames), do: {:error, :invalid_file_list}
+
+  defp ingest_multi_files(s3_keys, original_filenames, book_metadata, work_dir) do
+    sorted_files =
+      Enum.zip(s3_keys, original_filenames)
+      |> Enum.sort_by(fn {_s3_key, filename} -> Media.natural_sort_key(filename) end)
+
+    with {:ok, chapters_data, first_probe, cover_s3_key, uploaded_keys} <-
+           process_files(sorted_files, work_dir),
+         metadata =
+           Media.merge_metadata(book_metadata, first_probe || %{}, nil, prefer_album: true),
+         {:ok, _changes} <-
+           persist_book(chapters_data, metadata, cover_s3_key, s3_keys, uploaded_keys) do
+      :ok
+    end
+  end
+
+  defp process_files(sorted_files, work_dir) do
+    sorted_files
+    |> Enum.with_index()
+    |> Enum.reduce_while({:ok, [], nil, nil, []}, fn {{s3_key, original_filename}, index},
+                                                     {:ok, chapters_acc, first_probe,
+                                                      cover_s3_key, uploaded_keys} ->
+      case process_single_track(s3_key, original_filename, index, first_probe == nil, work_dir) do
+        {:ok, chapter, track_probe, maybe_cover_key, new_uploaded_keys} ->
+          next_first_probe = first_probe || track_probe
+          next_cover_key = cover_s3_key || maybe_cover_key
+
+          {:cont,
+           {:ok, [chapter | chapters_acc], next_first_probe, next_cover_key,
+            uploaded_keys ++ new_uploaded_keys}}
+
+        {:error, step, reason, partial_uploaded_keys} ->
+          {:halt, {:error, step, reason, uploaded_keys ++ partial_uploaded_keys}}
+      end
+    end)
+    |> case do
+      {:ok, chapters_acc, first_probe, cover_s3_key, uploaded_keys} ->
+        {:ok, Enum.reverse(chapters_acc), first_probe, cover_s3_key, uploaded_keys}
+
+      {:error, step, reason, uploaded_keys} ->
+        {:error, step, reason, uploaded_keys}
+    end
+  end
+
+  defp process_single_track(s3_key, original_filename, index, extract_cover?, work_dir) do
+    case Media.download_to_temp(s3_key, work_dir) do
+      {:ok, local_path} ->
+        try do
+          with {:ok, probe} <- probe_audio(local_path),
+               {:ok, duration_ms} <- parse_duration(probe),
+               {:ok, cover_s3_key} <-
+                 maybe_extract_cover(local_path, probe, extract_cover?, work_dir),
+               cover_keys = if(cover_s3_key, do: [cover_s3_key], else: []),
+               extension = Media.extension_from_probe(probe),
+               {:ok, permanent_key} <- upload_track(local_path, extension, cover_keys) do
+            chapter = %{
+              s3_key: permanent_key,
+              title: chapter_title(original_filename, index),
+              duration_ms: duration_ms
+            }
+
+            {:ok, chapter, probe, cover_s3_key, cover_keys ++ [permanent_key]}
+          end
+        after
+          File.rm(local_path)
+        end
 
       {:error, reason} ->
-        {:error, {:book_creation_failed, reason}}
+        {:error, :download_failed, reason, []}
     end
   end
 
-  defp cleanup_fatal(s3_keys) do
-    Enum.each(s3_keys, fn s3_key ->
-      Sonnet.Storage.delete_object(s3_key)
-      Sonnet.Library.delete_media_asset_by_s3_key(s3_key)
-    end)
+  defp probe_audio(path) do
+    case Media.probe_file(path, false) do
+      {:ok, probe} ->
+        if Media.has_audio_stream?(probe) do
+          {:ok, probe}
+        else
+          {:error, :probe_failed, {:permanent, :no_audio_stream}, []}
+        end
 
-    :ok
-  rescue
-    e ->
-      Logger.warning("Cleanup failed for multi-file ingestion: #{inspect(e)}")
-      :ok
+      {:error, reason} ->
+        {:error, :probe_failed, reason, []}
+    end
   end
 
-  defp ingestion_error(reason), do: {:error, {:ingestion_failed, reason}}
+  defp parse_duration(probe) do
+    case Media.parse_duration_ms(probe) do
+      {:ok, duration_ms} -> {:ok, duration_ms}
+      {:error, reason} -> {:error, :probe_failed, reason, []}
+    end
+  end
+
+  defp maybe_extract_cover(_path, _probe, false, _work_dir), do: {:ok, nil}
+
+  defp maybe_extract_cover(path, probe, true, work_dir) do
+    case Media.extract_and_upload_embedded_cover(path, probe, work_dir) do
+      {:ok, cover_s3_key} -> {:ok, cover_s3_key}
+      {:error, reason} -> {:error, :cover_upload_failed, reason, []}
+    end
+  end
+
+  defp upload_track(local_path, extension, existing_uploaded_keys) do
+    case Media.upload_audio_file(local_path, extension) do
+      {:ok, permanent_key} -> {:ok, permanent_key}
+      {:error, reason} -> {:error, :track_upload_failed, reason, existing_uploaded_keys}
+    end
+  end
+
+  defp persist_book(chapters_data, metadata, cover_s3_key, source_keys, uploaded_keys) do
+    case Library.create_book_with_chapters(chapters_data, metadata,
+           cover_s3_key: cover_s3_key,
+           source_keys_to_delete: source_keys
+         ) do
+      {:ok, changes} ->
+        {:ok, changes}
+
+      {:error, reason} ->
+        {:error, :book_creation_failed, reason, uploaded_keys}
+    end
+  rescue
+    e in DBConnection.ConnectionError ->
+      {:error, :book_creation_failed, {:transient, e}, uploaded_keys}
+
+    e in Postgrex.Error ->
+      {:error, :book_creation_failed, JobOutcome.classify_postgrex_error(e), uploaded_keys}
+  end
+
+  defp chapter_title(original_filename, index) do
+    case original_filename |> Path.basename() |> Path.rootname() |> String.trim() do
+      "" -> "Chapter #{index + 1}"
+      title -> title
+    end
+  end
 end

@@ -1,23 +1,26 @@
 defmodule Sonnet.LibraryTest do
   use Sonnet.DataCase, async: true
+  use Oban.Testing, repo: Sonnet.Repo
 
   alias Sonnet.Library
   alias Sonnet.Library.Book
   alias Sonnet.Library.Chapter
   alias Sonnet.Accounts
+  alias Sonnet.Workers.S3ObjectCleanup
 
-  describe "ingest_segmented!/3" do
-    test "creates a book, media assets, and chapters" do
-      segments_data = [
+  describe "create_book_with_chapters/3" do
+    test "creates a book, media assets, chapters, and atomic source cleanup jobs" do
+      chapters_data = [
         %{s3_key: "books/part-1.mp3", title: "Intro", duration_ms: 1_000},
         %{s3_key: "books/part-2.mp3", title: nil, duration_ms: 2_000}
       ]
 
       assert {:ok, %{book: book}} =
-               Library.ingest_segmented!(
-                 segments_data,
+               Library.create_book_with_chapters(
+                 chapters_data,
                  %{"title" => "Segmented Book"},
-                 "covers/cover.jpg"
+                 cover_s3_key: "covers/cover.jpg",
+                 source_keys_to_delete: ["staging/source-1", "books/part-1.mp3"]
                )
 
       assert %Book{title: "Segmented Book", cover_s3_key: "covers/cover.jpg"} = book
@@ -42,76 +45,70 @@ defmodule Sonnet.LibraryTest do
       assert second.end_ms == 3_000
       assert second.duration_ms == 2_000
       assert second.media_asset.s3_key == "books/part-2.mp3"
+
+      # Source key is enqueued for deletion, while permanent chapter key is never deleted.
+      assert_enqueued(
+        worker: S3ObjectCleanup,
+        args: %{"s3_key" => "staging/source-1", "only_if_unreferenced" => false}
+      )
+
+      refute_enqueued(
+        worker: S3ObjectCleanup,
+        args: %{"s3_key" => "books/part-1.mp3"}
+      )
     end
 
-    test "returns a tagged transaction failure when the book is invalid" do
-      segments_data = [
+    test "returns a tagged transaction failure and does not enqueue cleanup when the book is invalid" do
+      chapters_data = [
         %{s3_key: "books/part-1.mp3", title: "Broken", duration_ms: 1_000}
       ]
 
       assert {:error, {:transaction_failed, :book, %Ecto.Changeset{} = changeset, changes}} =
-               Library.ingest_segmented!(segments_data, %{"title" => ""})
+               Library.create_book_with_chapters(
+                 chapters_data,
+                 %{"title" => ""},
+                 source_keys_to_delete: ["staging/source-1"]
+               )
 
       assert %{} = changes
       assert "can't be blank" in errors_on(changeset).title
+      refute_enqueued(worker: S3ObjectCleanup)
+    end
+
+    test "rejects empty chapter lists" do
+      assert {:error, {:permanent, :no_chapters}} =
+               Library.create_book_with_chapters([], %{"title" => "Empty"})
     end
   end
 
-  describe "ingest_multi_file!/5" do
-    test "creates chapters from the supplied files" do
-      media_assets = [
-        Library.create_media_asset!("uploads/part-1.mp3"),
-        Library.create_media_asset!("uploads/part-2.mp3")
-      ]
+  describe "s3_key_referenced?/1 and cover cleanup" do
+    test "detects keys referenced by chapters or book covers" do
+      chapters_data = [%{s3_key: "books/used.m4b", title: "Ch 1", duration_ms: 1_000}]
 
       assert {:ok, %{book: book}} =
-               Library.ingest_multi_file!(
-                 ["uploads/part-1.mp3", "uploads/part-2.mp3"],
-                 ["01 Intro.mp3", "02 Outro.mp3"],
-                 media_assets,
-                 [1_500, 2_500],
-                 %{"title" => "Multi Book"}
+               Library.create_book_with_chapters(
+                 chapters_data,
+                 %{"title" => "Referenced Book"},
+                 cover_s3_key: "covers/used.jpg"
                )
 
-      assert %Book{title: "Multi Book"} = book
+      assert Library.s3_key_referenced?("books/used.m4b")
+      assert Library.s3_key_referenced?("covers/used.jpg")
+      refute Library.s3_key_referenced?("books/unused.m4b")
 
-      chapters =
-        Repo.all(
-          from c in Chapter,
-            where: c.book_id == ^book.id,
-            order_by: c.position,
-            preload: [:media_asset]
-        )
+      assert {:ok, _updated} = Library.update_book(book.id, %{cover_s3_key: "covers/new.jpg"})
 
-      assert [first, second] = chapters
-      assert first.title == "01 Intro"
-      assert first.start_ms == 0
-      assert first.end_ms == 1_500
-      assert first.media_asset_id == Enum.at(media_assets, 0).id
+      assert_enqueued(
+        worker: S3ObjectCleanup,
+        args: %{"s3_key" => "covers/used.jpg", "only_if_unreferenced" => true}
+      )
 
-      assert second.title == "02 Outro"
-      assert second.start_ms == 1_500
-      assert second.end_ms == 4_000
-      assert second.media_asset_id == Enum.at(media_assets, 1).id
-    end
+      assert {:ok, nil} = Library.delete_book(book.id)
 
-    test "returns a tagged transaction failure when the book is invalid" do
-      media_assets = [
-        Library.create_media_asset!("uploads/good.mp3"),
-        Library.create_media_asset!("uploads/bad.mp3")
-      ]
-
-      assert {:error, {:transaction_failed, :book, %Ecto.Changeset{} = changeset, changes}} =
-               Library.ingest_multi_file!(
-                 ["uploads/good.mp3", "uploads/bad.mp3"],
-                 ["01 Good.mp3", "02 Bad.mp3"],
-                 media_assets,
-                 [1_000, 2_000],
-                 %{"title" => ""}
-               )
-
-      assert %{} = changes
-      assert "can't be blank" in errors_on(changeset).title
+      assert_enqueued(
+        worker: S3ObjectCleanup,
+        args: %{"s3_key" => "covers/new.jpg", "only_if_unreferenced" => true}
+      )
     end
   end
 

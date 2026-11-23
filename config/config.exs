@@ -9,10 +9,10 @@ import Config
 
 config :sonnet, Oban,
   engine: Oban.Engines.Basic,
-  queues: [default: 10],
+  queues: [default: 10, ingestion: 3],
   repo: Sonnet.Repo,
   pruner: [max_age: {7, :days}],
-  lifeline: [rescue_after: {30, :minutes}],
+  lifeline: [rescue_after: {60, :minutes}],
   cron: [
     crontab: [
       {"@hourly", Sonnet.Workers.MediaAssetCleanup, args: %{}, max_attempts: 3}
@@ -58,13 +58,7 @@ config :ueberauth, Ueberauth,
     }
   ]
 
-config :ex_aws,
-  http_client: ExAws.Request.Req,
-  req_opts: [
-    connect_options: [
-      transport_opts: [middlebox_comp_mode: false]
-    ]
-  ]
+config :ex_aws, http_client: ExAws.Request.Req
 
 # Configure esbuild (the version is required)
 config :esbuild,
